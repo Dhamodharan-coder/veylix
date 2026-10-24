@@ -110,6 +110,22 @@ export async function unlockPrivateKey(masterPassword: string, account: VaultKey
   return subtle().importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
 }
 
+/**
+ * Like unlockPrivateKey but returns the raw PKCS#8 bytes. Used by the browser
+ * extension, whose service worker can restart and must re-import the key from
+ * in-memory session storage.
+ */
+export async function unlockPrivateKeyBytes(masterPassword: string, account: VaultKeyMaterial): Promise<Uint8Array<ArrayBuffer>> {
+  const wrappingKey = await deriveWrappingKey(masterPassword, account.kdfSalt, account.kdfIterations);
+  try {
+    return await aesDecrypt(wrappingKey, account.encryptedPrivateKey);
+  } catch {
+    throw new Error("Incorrect master password");
+  }
+}
+
+export const importPrivateKey = (pkcs8: Uint8Array<ArrayBuffer>) => subtle().importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
+
 /** Re-seal the private key under a new master password (data keys are untouched). */
 export async function rewrapPrivateKey(oldPassword: string, newPassword: string, account: VaultKeyMaterial): Promise<Pick<VaultKeyMaterial, "kdfSalt" | "kdfIterations" | "encryptedPrivateKey">> {
   const oldKey = await deriveWrappingKey(oldPassword, account.kdfSalt, account.kdfIterations);

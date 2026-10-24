@@ -46,3 +46,6 @@ next-env.d.ts
 
 # local editor/assistant settings
 .claude/settings.local.json
+
+# browser extension build output
+/extension/dist

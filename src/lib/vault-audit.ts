@@ -18,6 +18,8 @@ export const VAULT_ACTIONS = {
   PASSWORD_COPIED: "Password copied",
   USERNAME_COPIED: "Username copied",
   URL_OPENED: "Website opened",
+  AUTOFILLED: "Autofilled by extension",
+  EXTENSION_UNLOCKED: "Unlocked in extension",
   FOLDER_SHARED: "Folder shared",
   ITEM_SHARED: "Password shared",
   ACCESS_CHANGED: "Access changed",
@@ -29,7 +31,15 @@ export const VAULT_ACTIONS = {
 export type VaultAction = keyof typeof VAULT_ACTIONS;
 
 /** Client-reported access events (decryption happens in the browser). */
-export const CLIENT_ACCESS_ACTIONS = ["VAULT_UNLOCKED", "PASSWORD_REVEALED", "PASSWORD_COPIED", "USERNAME_COPIED", "URL_OPENED"] as const;
+export const CLIENT_ACCESS_ACTIONS = [
+  "VAULT_UNLOCKED",
+  "PASSWORD_REVEALED",
+  "PASSWORD_COPIED",
+  "USERNAME_COPIED",
+  "URL_OPENED",
+  "AUTOFILLED",
+  "EXTENSION_UNLOCKED",
+] as const;
 
 export async function logVaultEvent(
   actorId: string,

@@ -62,6 +62,16 @@ src/generated/prisma/           generated Prisma client (git-ignored)
 - Sharing with someone who has no vault yet creates a pending row/invite. A manager's browser grants the key after unlock (`grantPending`). Removing a folder member offers key rotation (`rotateFolderKey`).
 - Known limits: View access can still reveal passwords; single-item revoke doesn't rotate the key (UI suggests changing the password); a forgotten master password is unrecoverable.
 
+## Browser extension (`extension/`)
+- Manifest V3 (Chromium). Sources in `extension/src` (`background.ts` service worker, `popup.ts`, `content.ts`, `shared.ts`). Built with esbuild by `scripts/build-extension.mjs` into `extension/dist` (git-ignored, load unpacked). Commands: `npm run build:extension`, `npm run dev:extension`, `npm run typecheck:extension`.
+- It **reuses `src/lib/vault-crypto.ts`** (bundled in), so keep that module free of Node/Next imports.
+- Auth: the background reads the Better Auth session cookie via `chrome.cookies` and sends it as `Authorization: Bearer <signed token>`. The `bearer({ requireSignature: true })` plugin in `src/lib/auth.ts` accepts it.
+- API: `GET /api/extension/vault` (account + ciphertext snapshot) and `POST /api/extension/log` (audit; rejects non-extension origins). Both are in `src/app/api/extension/`.
+- Unlocked state = PKCS#8 private key in `chrome.storage.session` (memory-only, not readable by content scripts), cleared by an `alarms` auto-lock.
+- Biometric unlock (Touch ID / Windows Hello) uses the **WebAuthn PRF** extension (`extension/src/biometric.ts`): the PRF output → HKDF → AES key encrypts the PKCS#8 key into `chrome.storage.local` (`biometric`), bound to the server URL + vault public key. Without a fingerprint it can't be decrypted. WebAuthn ceremonies run in a standalone extension window (`popup.html?window=1`), because the OS prompt would close the toolbar popup.
+- Clicking the in-page icon while locked opens the popup (`chrome.action.openPopup`, falling back to the window). Never collect the master password inside a web page.
+- The content script only ever receives names/usernames for matching logins. Passwords are injected by the background via `chrome.scripting.executeScript` (`fillCredentials` uses the native value setter so React/Angular inputs update). `fillHere` refuses to fill a login on a non-matching domain.
+
 ## Database workflow
 - Migrations live in `prisma/migrations`. Create with `npx prisma migrate dev --create-only --name <name>`, review the SQL, then apply with `npx prisma migrate deploy`.
 - `prisma.config.ts` uses `DIRECT_URL` (Neon **non-pooled**) for migrations. Running migrations through the `-pooler` URL can leave a stuck advisory lock (error `P1002`).

@@ -20,3 +20,5 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 CLAUDE.md
+extension
+scripts

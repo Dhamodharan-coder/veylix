@@ -2,6 +2,7 @@ import "server-only";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
+import { bearer } from "better-auth/plugins/bearer";
 import { prisma } from "@/lib/db";
 import { emailEnabled, sendMail } from "@/lib/email";
 
@@ -65,6 +66,11 @@ export const auth = betterAuth({
     },
   },
   socialProviders,
-  // Must stay last so cookies set inside Server Actions reach the browser.
-  plugins: [nextCookies()],
+  plugins: [
+    // Lets the browser extension authenticate with the signed session token
+    // (read from the Veylix cookie) as `Authorization: Bearer <token>`.
+    bearer({ requireSignature: true }),
+    // Must stay last so cookies set inside Server Actions reach the browser.
+    nextCookies(),
+  ],
 });

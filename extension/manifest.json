@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "name": "Veylix",
+  "short_name": "Veylix",
+  "version": "1.0.0",
+  "description": "Autofill logins from your Veylix vault. Zero-knowledge: decrypted on your device with your master password.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Veylix",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage", "tabs", "scripting", "alarms", "cookies"],
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "minimum_chrome_version": "116"
+}

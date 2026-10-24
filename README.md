@@ -46,6 +46,22 @@ npm run dev             # http://localhost:3000
 | `GITHUB_CLIENT_*` | github.com/settings/developers → New OAuth App. Callback: `<BETTER_AUTH_URL>/api/auth/callback/github` |
 | `GOOGLE_CLIENT_*` | console.cloud.google.com → Credentials → OAuth client. Redirect: `<BETTER_AUTH_URL>/api/auth/callback/google` |
 
+## Browser extension (autofill)
+
+The **Veylix extension** (Chrome, Brave, Edge) fills saved logins on websites, like the Zoho Vault extension.
+
+```bash
+npm run build:extension      # builds extension/dist (use dev:extension to rebuild on change)
+```
+
+1. Open `brave://extensions` (or `chrome://extensions`) and turn on **Developer mode**.
+2. Click **Load unpacked** and choose the `extension/dist` folder.
+3. Pin the Veylix icon, sign in to Veylix in the browser, then click the icon and **unlock** with your master password.
+
+On a login page you'll see a Veylix icon in the username field. Click it to pick a saved login and fill it. The toolbar popup lists logins for the current site with **Fill**, **Copy username/password** and **Open & fill**.
+
+Your master password and decrypted passwords never leave the extension. It only downloads ciphertext from `/api/extension/vault`, authenticated with your Veylix session. The unlocked key lives in the browser's in-memory session storage and auto-locks after your vault's timeout. If Veylix isn't on `http://localhost:3000`, set the URL with the ⚙️ in the popup.
+
 ## Docker
 
 ```bash
