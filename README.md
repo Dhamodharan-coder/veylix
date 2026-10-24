@@ -72,9 +72,9 @@ Your master password and decrypted passwords never leave the extension. It only 
 Create **one token** in **Settings → API tokens**. By default it covers **all your projects**, and you pick the project and environment in the CLI. You can also limit a token to one project (optionally one environment). Tokens are read-only or read-write, with an optional expiry. Copy a token any time from its **View** button, or **Regenerate** it to rotate the value.
 
 ```bash
-npm install -g ./cli                 # installs the `veylix` command (Node 18+, no dependencies)
+npm install -g veylix-cli            # installs the `veylix` command (Node 18+, no dependencies)
 
-veylix login --url https://your-veylix.app --token vlx_…
+veylix login --token vlx_…           # defaults to https://veylix-omega.vercel.app (--url for self-hosted)
 veylix projects                      # projects, environments and variable counts
 veylix link                          # pick a project & environment for this folder (writes .veylix.json)
 veylix pull > .env                   # or --format json|shell, --output file
@@ -183,3 +183,7 @@ Remember to add the production callback URLs to your GitHub/Google OAuth apps.
 | `npm run db:migrate` | Create & apply a migration (dev) |
 | `npm run db:deploy` | Apply pending migrations (prod) |
 | `npm run db:studio` | Browse the database in the browser |
+
+## License
+
+[MIT](./LICENSE)

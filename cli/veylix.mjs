@@ -8,7 +8,8 @@ import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { createInterface } from "node:readline/promises";
 
-const VERSION = "1.1.0";
+const VERSION = "1.2.0";
+const DEFAULT_URL = "https://veylix-omega.vercel.app";
 const CONFIG_PATH = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "veylix", "config.json");
 // Per-folder project/environment choice (no secrets, safe to commit).
 const LINK_FILE = ".veylix.json";
@@ -16,7 +17,7 @@ const LINK_FILE = ".veylix.json";
 const HELP = `veylix ${VERSION}: environment variables from Veylix
 
 Usage:
-  veylix login --token <vlx_…> [--url <https://your-veylix>]
+  veylix login --token <vlx_…> [--url <server>]   Server defaults to ${DEFAULT_URL}
   veylix logout
   veylix whoami                       Show your account, token access and linked project
   veylix projects                     List projects and environments you can use
@@ -42,7 +43,9 @@ Examples:
   veylix pull > .env
   veylix run --env staging -- npm start
   veylix pull --project api --env production --format json
-  VEYLIX_TOKEN=vlx_… VEYLIX_PROJECT=api VEYLIX_ENV=production veylix run -- node server.js   # CI`;
+  VEYLIX_TOKEN=vlx_… VEYLIX_PROJECT=api VEYLIX_ENV=production veylix run -- node server.js   # CI
+
+Create a token at ${DEFAULT_URL}/settings`;
 
 // ---------- args ----------
 
@@ -85,7 +88,7 @@ function writeConfig(config) {
 
 function settings(flags) {
   const config = readConfig();
-  const url = String(flags.url || process.env.VEYLIX_URL || config.url || "http://localhost:3000").replace(/\/$/, "");
+  const url = String(flags.url || process.env.VEYLIX_URL || config.url || DEFAULT_URL).replace(/\/$/, "");
   const token = flags.token || process.env.VEYLIX_TOKEN || config.token;
   if (!token) fail("Not logged in. Run `veylix login --token vlx_…` or set VEYLIX_TOKEN.");
   return { url, token: String(token) };
@@ -215,7 +218,7 @@ function fail(msg) {
 const commands = {
   async login(_, flags) {
     if (!flags.token || flags.token === true) fail("Usage: veylix login --token vlx_… [--url https://your-veylix]");
-    const config = { url: String(flags.url || readConfig().url || "http://localhost:3000").replace(/\/$/, ""), token: String(flags.token) };
+    const config = { url: String(flags.url || readConfig().url || DEFAULT_URL).replace(/\/$/, ""), token: String(flags.token) };
     const me = await fetchMe({ ...flags, ...config });
     writeConfig(config);
     const scope = me.scope === "all-projects" ? `all projects (${me.projects.length})` : `project ${c(1, me.projects[0]?.name)}`;

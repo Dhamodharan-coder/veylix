@@ -1,13 +1,36 @@
 {
   "name": "veylix-cli",
-  "version": "1.1.0",
-  "description": "Pull Veylix Env Manager variables into apps, shells and CI pipelines",
+  "version": "1.2.0",
+  "description": "Veylix CLI: pull, inject and sync environment variables from Veylix into your apps, shells and CI pipelines. Zero dependencies.",
+  "keywords": [
+    "veylix",
+    "env",
+    "dotenv",
+    "environment-variables",
+    "secrets",
+    "secrets-management",
+    "config",
+    "cli",
+    "ci",
+    "devops"
+  ],
+  "homepage": "https://veylix-omega.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Dhamodharan-coder/veylix.git",
+    "directory": "cli"
+  },
+  "bugs": {
+    "url": "https://github.com/Dhamodharan-coder/veylix/issues"
+  },
   "type": "module",
   "bin": {
-    "veylix": "./veylix.mjs"
+    "veylix": "veylix.mjs"
   },
   "files": [
-    "veylix.mjs"
+    "veylix.mjs",
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=18"
