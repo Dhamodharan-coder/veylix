@@ -1,0 +1,22 @@
+# Dependencies & build output (rebuilt inside the image)
+node_modules
+.next
+src/generated
+
+# Secrets: provided at runtime via env_file, never copied into the image
+.env
+.env.*
+!.env.example
+
+# Tooling / local only
+.git
+.gitignore
+.vscode
+.idea
+.claude
+*.log
+*.tsbuildinfo
+Dockerfile
+docker-compose.yml
+.dockerignore
+CLAUDE.md

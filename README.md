@@ -46,6 +46,24 @@ npm run dev             # http://localhost:3000
 | `GITHUB_CLIENT_*` | github.com/settings/developers → New OAuth App. Callback: `<BETTER_AUTH_URL>/api/auth/callback/github` |
 | `GOOGLE_CLIENT_*` | console.cloud.google.com → Credentials → OAuth client. Redirect: `<BETTER_AUTH_URL>/api/auth/callback/google` |
 
+## Docker
+
+```bash
+cp .env.example .env   # fill in your values (same as local setup)
+docker compose up --build
+```
+
+This builds a small production image (Next.js standalone, non-root, with a healthcheck), runs `prisma migrate deploy` as a one-off `migrate` container, then starts the app on http://localhost:3000. Configuration is read from `.env` at runtime. No secrets are baked into the image.
+
+Useful commands:
+
+```bash
+docker compose up -d --build      # run in the background
+docker compose logs -f app        # follow app logs
+docker compose run --rm migrate   # apply new migrations
+docker compose down               # stop
+```
+
 ## Deploy (Vercel + Neon, free)
 
 1. Push this folder to a GitHub repository.
