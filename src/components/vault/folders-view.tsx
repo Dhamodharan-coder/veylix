@@ -7,11 +7,13 @@ import { Card } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/page";
 import { FolderMenu, NewFolderButton } from "@/components/vault/folder-actions";
 import { PERMISSION_LABEL } from "@/components/vault/use-decrypted";
+import { useAwaitingRefresh } from "@/components/vault/use-awaiting-refresh";
 import type { VaultSnapshot } from "@/lib/vault-data";
 import { cn } from "@/lib/utils";
 
 export function FoldersView({ snapshot }: { snapshot: VaultSnapshot }) {
   const { folders, items } = snapshot;
+  useAwaitingRefresh(folders.some((f) => !f.encryptedFolderKey));
   return (
     <>
       <PageHeader title="Folders" description="Organize passwords into folders and share whole folders with your team." actions={<NewFolderButton />} />

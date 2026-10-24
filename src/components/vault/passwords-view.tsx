@@ -41,6 +41,7 @@ import { notify } from "@/components/toast";
 import { ItemDialog, type ItemDialogMode } from "@/components/vault/item-dialog";
 import { ShareDialog, type ShareTarget } from "@/components/vault/share-dialog";
 import { PERMISSION_LABEL, avatarColor, hostname, useDecrypted } from "@/components/vault/use-decrypted";
+import { useAwaitingRefresh } from "@/components/vault/use-awaiting-refresh";
 import { deleteItem, logVaultAccess, toggleFavorite } from "@/app/(app)/vault/actions";
 import type { VaultSnapshot, VaultItemRecord } from "@/lib/vault-data";
 import type { ItemSecret } from "@/components/vault/vault-provider";
@@ -80,6 +81,7 @@ export function PasswordsView({
   }, [allItems, folders, filter]);
 
   const { secrets, ready } = useDecrypted(scoped, folders);
+  useAwaitingRefresh(awaiting.length > 0 || folders.some((f) => !f.encryptedFolderKey));
 
   const q = query.trim().toLowerCase();
   const visible = scoped.filter((i) => {

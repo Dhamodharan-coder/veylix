@@ -84,7 +84,8 @@ function SharePanel({ target, folders, items }: { target: ShareTarget; folders: 
 
   useEffect(() => {
     let cancelled = false;
-    fetchEntries().then((res) => {
+    // Grant keys to anyone who set up their vault since being invited, then list access.
+    vault.grantPending().catch(() => 0).then(fetchEntries).then((res) => {
       if (cancelled) return;
       if (res.ok) setEntries(res.entries);
       else notify.error(res.error);
@@ -92,7 +93,7 @@ function SharePanel({ target, folders, items }: { target: ShareTarget; folders: 
     return () => {
       cancelled = true;
     };
-  }, [fetchEntries]);
+  }, [fetchEntries, vault]);
 
   const share = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

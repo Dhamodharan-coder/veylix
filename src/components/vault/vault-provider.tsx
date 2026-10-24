@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, use, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import {
   createVaultKeys,
   decryptJSON,
@@ -44,6 +45,7 @@ const ACTIVITY_EVENTS = ["pointerdown", "keydown", "mousemove", "scroll", "touch
  * Nothing secret is ever written to storage; a reload or lock clears it all.
  */
 export function VaultProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const privateKeyRef = useRef<CryptoKey | null>(null);
   const cacheRef = useRef(new Map<string, Promise<CryptoKey>>());
   const [unlocked, setUnlocked] = useState(false);
@@ -139,6 +141,30 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     setUnlocked(true);
     void grantPending();
   }, [grantPending]);
+
+  // Teammates may finish their vault setup while we're already unlocked, so keep
+  // checking for people waiting on a key (periodically and when the tab regains focus).
+  useEffect(() => {
+    if (!unlocked) return;
+    let running = false;
+    const check = async () => {
+      if (running || document.visibilityState !== "visible") return;
+      running = true;
+      try {
+        if ((await grantPending()) > 0) router.refresh();
+      } finally {
+        running = false;
+      }
+    };
+    const timer = window.setInterval(check, 30_000);
+    window.addEventListener("focus", check);
+    document.addEventListener("visibilitychange", check);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", check);
+      document.removeEventListener("visibilitychange", check);
+    };
+  }, [unlocked, grantPending, router]);
 
   // Auto-lock after inactivity.
   useEffect(() => {
