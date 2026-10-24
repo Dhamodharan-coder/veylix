@@ -1,36 +1,54 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# envman
 
-## Getting Started
+Encrypted environment-variable manager built with **Next.js 16**, **Prisma 7 + Neon Postgres**, and **Better Auth**.
 
-First, run the development server:
+- Email + password sign-up with **required email verification**
+- **Forgot / reset password** by email
+- Optional **GitHub / Google OAuth** (buttons appear when keys are set)
+- Projects → environments (development / staging / production) → variables
+- Values encrypted with **AES-256-GCM** before they hit the database
+- Import a pasted `.env`, download any environment as `.env`
+
+## Local setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env    # then fill it in (see below)
+npm run db:migrate      # creates the tables in Neon
+npm run dev             # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### `.env` values
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Variable | Where to get it |
+|---|---|
+| `DATABASE_URL` | Neon dashboard → **Connect** → *Connection pooling ON* (host contains `-pooler`) |
+| `DIRECT_URL` | Same dialog with pooling **OFF** (used only for migrations) |
+| `BETTER_AUTH_SECRET` | `openssl rand -base64 32` |
+| `BETTER_AUTH_URL` | `http://localhost:3000` locally, your real URL in production |
+| `ENCRYPTION_KEY` | `openssl rand -base64 32`. **Never change it** once secrets are stored, or they can't be decrypted |
+| `EMAIL_ENABLED` | `false` (default): no emails, sign-up logs straight in, reset links print in the terminal. `true`: emails sent and verification required |
+| `RESEND_API_KEY` | resend.com → API Keys. Leave empty in dev: email links are printed in the terminal |
+| `EMAIL_FROM` | `onboarding@resend.dev` works for testing (only delivers to your own Resend account email). Verify a domain to email anyone |
+| `GITHUB_CLIENT_*` | github.com/settings/developers → New OAuth App. Callback: `<BETTER_AUTH_URL>/api/auth/callback/github` |
+| `GOOGLE_CLIENT_*` | console.cloud.google.com → Credentials → OAuth client. Redirect: `<BETTER_AUTH_URL>/api/auth/callback/google` |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploy (Vercel + Neon, free)
 
-## Learn More
+1. Push this folder to a GitHub repository.
+2. vercel.com → **Add New Project** → import the repo (Next.js is auto-detected).
+3. Add every variable from `.env` in **Settings → Environment Variables**, with `BETTER_AUTH_URL` set to your `https://<app>.vercel.app` URL.
+4. Deploy. Every later `git push` redeploys automatically.
+5. When the schema changes: `npm run db:migrate` locally (creates a migration), commit it, then run `npm run db:deploy` against production.
 
-To learn more about Next.js, take a look at the following resources:
+Remember to add the production callback URLs to your GitHub/Google OAuth apps.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Scripts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+| Script | What it does |
+|---|---|
+| `npm run dev` | Dev server |
+| `npm run build` | `prisma generate` + production build |
+| `npm run db:migrate` | Create & apply a migration (dev) |
+| `npm run db:deploy` | Apply pending migrations (prod) |
+| `npm run db:studio` | Browse the database in the browser |
