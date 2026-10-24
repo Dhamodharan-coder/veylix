@@ -13,7 +13,8 @@
     "db:studio": "prisma studio",
     "build:extension": "node scripts/build-extension.mjs",
     "dev:extension": "node scripts/build-extension.mjs --watch",
-    "typecheck:extension": "tsc -p extension/tsconfig.json"
+    "typecheck:extension": "tsc -p extension/tsconfig.json",
+    "brand": "node scripts/brand.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",
@@ -47,6 +48,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "prisma": "^7.10.1",
+    "sharp": "^0.35.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

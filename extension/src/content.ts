@@ -15,14 +15,14 @@ const ICON =
 const STYLE = `
   :host { all: initial; }
   .btn { position: fixed; z-index: 2147483646; display: grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 6px;
-         background: #059669; color: #fff; cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / .25); padding: 0; }
+         background: linear-gradient(135deg, #2563eb, #059669); color: #fff; cursor: pointer; box-shadow: 0 1px 3px rgb(0 0 0 / .25); padding: 0; }
   .btn:hover { filter: brightness(1.1); }
   .menu { position: fixed; z-index: 2147483647; width: 280px; max-height: 260px; overflow-y: auto; border-radius: 10px; padding: 6px;
           background: #fff; color: #0a0a0a; box-shadow: 0 0 0 1px rgb(0 0 0 / .08), 0 10px 30px rgb(0 0 0 / .18);
           font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
   @media (prefers-color-scheme: dark) { .menu { background: #171717; color: #fafafa; box-shadow: 0 0 0 1px rgb(255 255 255 / .1), 0 10px 30px rgb(0 0 0 / .5); } .muted { color: #a3a3a3 !important; } .opt:hover { background: #262626 !important; } }
   .head { display: flex; align-items: center; gap: 6px; padding: 4px 6px 8px; font-weight: 600; font-size: 12px; }
-  .head span { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: #059669; color: #fff; }
+  .head span { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 5px; background: linear-gradient(135deg, #2563eb, #059669); color: #fff; }
   .opt { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px; border: 0; border-radius: 8px; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit; }
   .opt:hover { background: #f5f5f5; }
   .av { flex-shrink: 0; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 7px; background: #2563eb; color: #fff; font-weight: 600; text-transform: uppercase; }

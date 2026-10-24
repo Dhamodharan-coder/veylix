@@ -45,7 +45,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; box-shadow: 0 1px 0 var(--ring); }
 .brand { display: flex; align-items: center; gap: 10px; }
-.logo { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; background: var(--vault); color: #fff; }
+.logo { display: block; width: 30px; height: 30px; border-radius: 8px; }
 .title { margin: 0; font-weight: 600; }
 .subtitle { margin: 0; font-size: 11px; color: var(--muted-fg); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .actions { display: flex; gap: 2px; }

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="veylix-bg" x1="2" y1="2" x2="30" y2="30" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#059669"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#veylix-bg)"/>
+  <path d="M16 5.6c2.4 1.6 5 2.4 7.8 2.5.4 0 .7.3.7.7v6c0 5.7-3.6 9.4-8.2 11.2a.8.8 0 0 1-.6 0C11.1 24.2 7.5 20.5 7.5 14.8v-6c0-.4.3-.7.7-.7 2.8-.1 5.4-.9 7.8-2.5Z" fill="#fff" fill-opacity=".2"/>
+  <path d="m11.4 11.6 4.6 9 4.6-9" stroke="#fff" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

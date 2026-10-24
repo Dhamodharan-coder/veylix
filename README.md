@@ -62,6 +62,10 @@ On a login page you'll see a Veylix icon in the username field. Click it to pick
 
 Your master password and decrypted passwords never leave the extension. It only downloads ciphertext from `/api/extension/vault`, authenticated with your Veylix session. The unlocked key lives in the browser's in-memory session storage and auto-locks after your vault's timeout. If Veylix isn't on `http://localhost:3000`, set the URL with the ⚙️ in the popup.
 
+## Logo
+
+Replace `brand/logo.png` (square, 1024×1024, transparent background), then run `npm run brand`. It regenerates the browser tab icon, the Apple icon, the in-app logo and the extension icons.
+
 ## Docker
 
 ```bash

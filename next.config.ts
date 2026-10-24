@@ -7,6 +7,8 @@ const nextConfig: NextConfig = {
   partialPrefetching: true,
   // Don't let `next dev` generate an AGENTS.md; project docs live in CLAUDE.md.
   agentRules: false,
+  // Hide the floating Next.js "N" dev-tools button (errors still show as an overlay).
+  devIndicators: false,
   turbopack: {
     rules: {
       "*.css": {

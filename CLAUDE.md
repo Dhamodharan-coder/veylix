@@ -84,6 +84,9 @@ See `.env.example`. Key ones: `DATABASE_URL` (pooled), `DIRECT_URL` (direct), `B
 - `Dockerfile` stages: `deps` → `builder` (standalone build with placeholder env) → `runner` (non-root, ~300 MB, healthcheck) and `migrate` (runs `prisma migrate deploy`).
 - `docker-compose.yml` runs `migrate` then `app`, both reading `.env`. Secrets are never copied into images (`.dockerignore`).
 
+## Branding
+- The logo has one source: `brand/logo.png` (or `brand/logo.svg` as a fallback). `npm run brand` (`scripts/brand.mjs`, uses sharp) generates `src/app/icon.png`, `src/app/apple-icon.png`, `public/logo.png` (used by `LogoMark`) and `brand/extension/icon-*.png` (copied by the extension build). Commit the generated files.
+
 ## Gotchas
 - Next.js 16 differs from older versions: read `node_modules/next/dist/docs/` before using unfamiliar APIs (e.g. `proxy.ts`, async request APIs, `refresh()`).
 - If the dev server shows stale styles or 404s for new routes, restart it with a clean cache: `rm -rf .next && npm run dev`.
