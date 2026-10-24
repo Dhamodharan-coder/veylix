@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, useTransition, type ReactNode } from "react";
+import { useActionState, useRef, useState, useTransition, type ReactNode } from "react";
 import {
   Check,
   CircleAlert,
@@ -8,6 +8,8 @@ import {
   Download,
   Eye,
   EyeOff,
+  FileText,
+  FileUp,
   KeyRound,
   LoaderCircle,
   Pencil,
@@ -47,6 +49,7 @@ import { EmptyState, formatDate } from "@/components/page";
 import { IconButton } from "@/components/icon-button";
 import { notify } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
+import { cn } from "@/lib/utils";
 
 type Secret = { id: string; key: string; updatedAt: string };
 type Environment = { id: string; name: string };
@@ -140,7 +143,7 @@ export function SecretsPanel({ environment, secrets, header }: { environment: En
       </Dialog>
 
       <Dialog open={dialog === "import"} onOpenChange={(o) => setDialog(o ? "import" : null)}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Import .env file</DialogTitle>
             <DialogDescription>
@@ -185,7 +188,7 @@ function AddVariableForm({ environment, onDone }: { environment: Environment; on
       </div>
       <div className="grid gap-2">
         <Label htmlFor="secret-value">Value</Label>
-        <Textarea id="secret-value" name="value" rows={3} autoComplete="off" placeholder="postgres://…" className="font-mono" />
+        <Textarea id="secret-value" name="value" rows={3} autoComplete="off" placeholder="postgres://…" className="field-sizing-fixed h-24 max-h-60 resize-y font-mono break-all" />
       </div>
       <DialogFooter>
         <DialogClose asChild>
@@ -207,29 +210,114 @@ function ImportForm({ environment, onDone }: { environment: Environment; onDone:
     return result;
   }, null);
 
+  const [content, setContent] = useState("");
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  // Read the file in the browser and show it for review before importing.
+  const loadFile = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > MAX_ENV_FILE_BYTES) return notify.error("File is too large", { description: "The limit is 1 MB." });
+    const text = await file.text();
+    if (text.includes("\u0000")) return notify.error("That doesn't look like a text .env file");
+    setContent(text);
+    setFileName(file.name);
+  };
+
+  const lineCount = content.split(/\r?\n/).filter((l) => /^\s*(export\s+)?[A-Za-z_][A-Za-z0-9_]*\s*=/.test(l)).length;
+
   return (
     <form action={action} className="grid gap-4">
       <FormError message={state?.error} />
       <input type="hidden" name="environmentId" value={environment.id} />
-      <Textarea
-        name="content"
-        rows={12}
-        required
-        autoFocus
-        spellCheck={false}
-        aria-label=".env contents"
-        placeholder={"# Paste your .env file\nDATABASE_URL=postgres://...\nAPI_KEY=abc123"}
-        className="min-h-64 font-mono text-[13px]"
-      />
+
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          void loadFile(e.dataTransfer.files[0]);
+        }}
+        className={cn(
+          "flex flex-col items-center gap-2 rounded-xl border-2 border-dashed px-4 py-6 text-center transition",
+          dragging ? "border-primary bg-primary/5" : "border-border",
+        )}
+      >
+        <span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <FileUp className="size-5" />
+        </span>
+        <p className="text-sm">
+          <span className="font-medium">Drop a .env file here</span> <span className="text-muted-foreground">or</span>{" "}
+          <button type="button" className="font-medium text-primary hover:underline" onClick={() => fileInput.current?.click()}>
+            choose a file
+          </button>
+        </p>
+        <p className="text-xs text-muted-foreground">.env, .env.local, .env.production, .txt · up to 1 MB · read on your device</p>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".env,.txt,text/plain,*"
+          className="hidden"
+          onChange={(e) => {
+            void loadFile(e.target.files?.[0]);
+            e.target.value = "";
+          }}
+        />
+      </div>
+
+      <div className="grid gap-2">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">{fileName ? "Review before importing" : "Or paste the contents"}</span>
+          {fileName && (
+            <span className="flex items-center gap-1.5 text-xs">
+              <FileText className="size-3.5 text-muted-foreground" />
+              <span className="font-medium">{fileName}</span>
+              <span className="text-muted-foreground">· {lineCount} variable{lineCount === 1 ? "" : "s"}</span>
+              <button
+                type="button"
+                aria-label="Clear file"
+                className="ml-1 rounded p-0.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={() => {
+                  setContent("");
+                  setFileName(null);
+                }}
+              >
+                <X className="size-3.5" />
+              </button>
+            </span>
+          )}
+        </div>
+        <Textarea
+          name="content"
+          rows={10}
+          required
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          spellCheck={false}
+          aria-label=".env contents"
+          placeholder={"# Paste your .env file\nDATABASE_URL=postgres://...\nAPI_KEY=abc123"}
+          wrap="off"
+          className="field-sizing-fixed h-64 max-h-[45vh] resize-y overflow-auto font-mono text-[13px] leading-relaxed whitespace-pre"
+        />
+      </div>
       <DialogFooter>
         <DialogClose asChild>
           <Button type="button" variant="outline">Cancel</Button>
         </DialogClose>
-        <Button disabled={pending}>{pending ? "Importing…" : "Import variables"}</Button>
+        <Button disabled={pending || !content.trim()}>
+          {pending ? "Importing…" : lineCount ? `Import ${lineCount} variable${lineCount === 1 ? "" : "s"}` : "Import variables"}
+        </Button>
       </DialogFooter>
     </form>
   );
 }
+
+const MAX_ENV_FILE_BYTES = 1024 * 1024;
 
 function SecretRow({ secret }: { secret: Secret }) {
   const { id, key: name } = secret;
