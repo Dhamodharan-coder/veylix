@@ -26,6 +26,9 @@ export const VAULT_ACTIONS = {
   ACCESS_REVOKED: "Access revoked",
   KEY_GRANTED: "Access granted",
   KEY_ROTATED: "Encryption key rotated",
+  RECOVERY_KEY_CREATED: "Recovery key created",
+  VAULT_RECOVERED: "Vault recovered with recovery key",
+  VAULT_RESET: "Vault reset",
 } as const;
 
 export type VaultAction = keyof typeof VAULT_ACTIONS;

@@ -80,22 +80,72 @@ export type VaultKeyMaterial = {
   encryptedPrivateKey: string;
 };
 
-/** First-time setup: new key pair, private key sealed with the master password. */
-export async function createVaultKeys(masterPassword: string): Promise<{ material: VaultKeyMaterial; privateKey: CryptoKey; publicKey: CryptoKey }> {
-  const pair = await subtle().generateKey({ ...RSA, modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]) }, true, ["encrypt", "decrypt"]);
+type SealedPrivateKey = Pick<VaultKeyMaterial, "kdfSalt" | "kdfIterations" | "encryptedPrivateKey">;
+
+/** Encrypt raw private-key bytes under a master password (fresh salt each time). */
+export async function sealPrivateKeyWithPassword(pkcs8: Uint8Array<ArrayBuffer>, masterPassword: string): Promise<SealedPrivateKey> {
   const kdfSalt = toB64(randomBytes(16));
   const wrappingKey = await deriveWrappingKey(masterPassword, kdfSalt, KDF_ITERATIONS);
+  return { kdfSalt, kdfIterations: KDF_ITERATIONS, encryptedPrivateKey: await aesEncrypt(wrappingKey, pkcs8) };
+}
+
+/** First-time setup: new key pair, private key sealed with the master password. */
+export async function createVaultKeys(
+  masterPassword: string,
+): Promise<{ material: VaultKeyMaterial; privateKey: CryptoKey; publicKey: CryptoKey; pkcs8: Uint8Array<ArrayBuffer> }> {
+  const pair = await subtle().generateKey({ ...RSA, modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]) }, true, ["encrypt", "decrypt"]);
   const pkcs8 = new Uint8Array(await subtle().exportKey("pkcs8", pair.privateKey));
   return {
     material: {
-      kdfSalt,
-      kdfIterations: KDF_ITERATIONS,
+      ...(await sealPrivateKeyWithPassword(pkcs8, masterPassword)),
       publicKey: toB64(await subtle().exportKey("spki", pair.publicKey)),
-      encryptedPrivateKey: await aesEncrypt(wrappingKey, pkcs8),
     },
     privateKey: pair.privateKey,
     publicKey: pair.publicKey,
+    pkcs8,
   };
+}
+
+// ---------- recovery key ----------
+// A random 160-bit key shown once to the user (e.g. "VXK7-9QHM-…"). It seals
+// a second copy of the private key so a forgotten master password doesn't
+// mean lost data. Being high-entropy, it needs HKDF only (no slow KDF).
+
+const CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+export function generateRecoveryKey(): string {
+  const bytes = randomBytes(20);
+  let bits = "";
+  for (const b of bytes) bits += b.toString(2).padStart(8, "0");
+  const chars = bits.match(/.{5}/g)!.map((chunk) => CROCKFORD[parseInt(chunk, 2)]);
+  return chars.join("").match(/.{4}/g)!.join("-");
+}
+
+/** Uppercase, drop separators, and map look-alike letters (O→0, I/L→1). */
+export const normalizeRecoveryKey = (key: string) => key.toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/O/g, "0").replace(/[IL]/g, "1");
+
+async function recoveryWrappingKey(recoveryKey: string): Promise<CryptoKey> {
+  const material = await subtle().importKey("raw", enc.encode(normalizeRecoveryKey(recoveryKey)), "HKDF", false, ["deriveKey"]);
+  return subtle().deriveKey(
+    { name: "HKDF", hash: "SHA-256", salt: new Uint8Array(32), info: enc.encode("veylix-vault-recovery-v1") },
+    material,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"],
+  );
+}
+
+export async function sealPrivateKeyWithRecoveryKey(pkcs8: Uint8Array<ArrayBuffer>, recoveryKey: string): Promise<string> {
+  return aesEncrypt(await recoveryWrappingKey(recoveryKey), pkcs8);
+}
+
+/** Throws if the recovery key is wrong. */
+export async function openPrivateKeyWithRecoveryKey(recoveryKey: string, wrapped: string): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    return await aesDecrypt(await recoveryWrappingKey(recoveryKey), wrapped);
+  } catch {
+    throw new Error("That recovery key isn't correct");
+  }
 }
 
 /** Unlock: throws if the master password is wrong (AES-GCM authentication fails). */
@@ -127,7 +177,7 @@ export async function unlockPrivateKeyBytes(masterPassword: string, account: Vau
 export const importPrivateKey = (pkcs8: Uint8Array<ArrayBuffer>) => subtle().importKey("pkcs8", pkcs8, RSA, false, ["decrypt"]);
 
 /** Re-seal the private key under a new master password (data keys are untouched). */
-export async function rewrapPrivateKey(oldPassword: string, newPassword: string, account: VaultKeyMaterial): Promise<Pick<VaultKeyMaterial, "kdfSalt" | "kdfIterations" | "encryptedPrivateKey">> {
+export async function rewrapPrivateKey(oldPassword: string, newPassword: string, account: VaultKeyMaterial): Promise<SealedPrivateKey> {
   const oldKey = await deriveWrappingKey(oldPassword, account.kdfSalt, account.kdfIterations);
   let pkcs8: Uint8Array<ArrayBuffer>;
   try {
@@ -135,9 +185,7 @@ export async function rewrapPrivateKey(oldPassword: string, newPassword: string,
   } catch {
     throw new Error("Current master password is incorrect");
   }
-  const kdfSalt = toB64(randomBytes(16));
-  const newKey = await deriveWrappingKey(newPassword, kdfSalt, KDF_ITERATIONS);
-  return { kdfSalt, kdfIterations: KDF_ITERATIONS, encryptedPrivateKey: await aesEncrypt(newKey, pkcs8) };
+  return sealPrivateKeyWithPassword(pkcs8, newPassword);
 }
 
 export const importPublicKey = (spkiB64: string) => subtle().importKey("spki", fromB64(spkiB64), RSA, false, ["encrypt"]);

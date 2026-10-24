@@ -1,8 +1,10 @@
 "use server";
 
 import { refresh } from "next/cache";
+import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { auth } from "@/lib/auth";
 import { requireUser } from "@/lib/session";
 import {
   VaultAccessError,
@@ -57,18 +59,34 @@ export async function createVaultAccount(input: {
   publicKey: string;
   encryptedPrivateKey: string;
   personalFolderKey: string;
+  recoveryWrappedPrivateKey: string;
 }) {
   return run(async () => {
     const user = await requireUser();
     const data = z
-      .object({ kdfSalt: b64, kdfIterations: z.number().int().min(100_000).max(10_000_000), publicKey: b64, encryptedPrivateKey: cipher, personalFolderKey: sealed })
+      .object({
+        kdfSalt: b64,
+        kdfIterations: z.number().int().min(100_000).max(10_000_000),
+        publicKey: b64,
+        encryptedPrivateKey: cipher,
+        personalFolderKey: sealed,
+        recoveryWrappedPrivateKey: cipher,
+      })
       .parse(input);
 
     if (await prisma.vaultAccount.findUnique({ where: { userId: user.id } })) throw new VaultAccessError("Your vault is already set up.");
 
     await prisma.$transaction(async (tx) => {
       await tx.vaultAccount.create({
-        data: { userId: user.id, kdfSalt: data.kdfSalt, kdfIterations: data.kdfIterations, publicKey: data.publicKey, encryptedPrivateKey: data.encryptedPrivateKey },
+        data: {
+          userId: user.id,
+          kdfSalt: data.kdfSalt,
+          kdfIterations: data.kdfIterations,
+          publicKey: data.publicKey,
+          encryptedPrivateKey: data.encryptedPrivateKey,
+          recoveryWrappedPrivateKey: data.recoveryWrappedPrivateKey,
+          recoveryCreatedAt: new Date(),
+        },
       });
       await tx.vaultFolder.create({
         data: {
@@ -100,7 +118,7 @@ export async function createVaultAccount(input: {
     });
 
     await logVaultEvent(user.id, "VAULT_CREATED");
-    refresh();
+    // No refresh here: the browser shows the recovery key first, then refreshes.
     return {};
   });
 }
@@ -111,6 +129,69 @@ export async function changeMasterPassword(input: { kdfSalt: string; kdfIteratio
     const data = z.object({ kdfSalt: b64, kdfIterations: z.number().int().min(100_000).max(10_000_000), encryptedPrivateKey: cipher }).parse(input);
     await prisma.vaultAccount.update({ where: { userId: user.id }, data });
     await logVaultEvent(user.id, "MASTER_PASSWORD_CHANGED");
+    return {};
+  });
+}
+
+/** Store a (new) recovery-key copy of the private key. Replaces any previous one. */
+export async function setRecoveryKey(recoveryWrappedPrivateKey: string) {
+  return run(async () => {
+    const user = await requireVaultUser();
+    await prisma.vaultAccount.update({
+      where: { userId: user.id },
+      data: { recoveryWrappedPrivateKey: cipher.parse(recoveryWrappedPrivateKey), recoveryCreatedAt: new Date() },
+    });
+    await logVaultEvent(user.id, "RECOVERY_KEY_CREATED");
+    refresh();
+    return {};
+  });
+}
+
+/**
+ * Forgot master password, with a recovery key: the browser opened the private
+ * key with the recovery key and re-sealed it under a new master password and a
+ * new recovery key (the old one is used up). No data is lost.
+ */
+export async function recoverVault(input: { kdfSalt: string; kdfIterations: number; encryptedPrivateKey: string; recoveryWrappedPrivateKey: string }) {
+  return run(async () => {
+    const user = await requireVaultUser();
+    const data = z
+      .object({ kdfSalt: b64, kdfIterations: z.number().int().min(100_000).max(10_000_000), encryptedPrivateKey: cipher, recoveryWrappedPrivateKey: cipher })
+      .parse(input);
+    await prisma.vaultAccount.update({ where: { userId: user.id }, data: { ...data, recoveryCreatedAt: new Date() } });
+    await logVaultEvent(user.id, "VAULT_RECOVERED");
+    return {};
+  });
+}
+
+/**
+ * Forgot master password, no recovery key: delete the user's own vault data so
+ * they can start over. Access to folders/passwords others shared with them is
+ * kept but reset to "awaiting access", so sharers re-grant it automatically to
+ * the new key pair. Requires the account password (or email for OAuth-only users).
+ */
+export async function resetVault(confirmation: { password?: string; email?: string }) {
+  return run(async () => {
+    const user = await requireVaultUser();
+    const hasPassword = await prisma.account.findFirst({ where: { userId: user.id, providerId: "credential" }, select: { id: true } });
+    if (hasPassword) {
+      try {
+        await auth.api.verifyPassword({ body: { password: z.string().min(1).parse(confirmation.password) }, headers: await headers() });
+      } catch {
+        throw new VaultAccessError("That password is incorrect.");
+      }
+    } else if (confirmation.email?.trim().toLowerCase() !== user.email.toLowerCase()) {
+      throw new VaultAccessError("Type your account email exactly to confirm.");
+    }
+
+    await prisma.$transaction([
+      prisma.vaultFolder.deleteMany({ where: { ownerId: user.id } }),
+      prisma.vaultFolderMember.updateMany({ where: { userId: user.id }, data: { encryptedFolderKey: null } }),
+      prisma.vaultItemShare.updateMany({ where: { userId: user.id }, data: { encryptedItemKey: null } }),
+      prisma.vaultAccount.delete({ where: { userId: user.id } }),
+    ]);
+    await logVaultEvent(user.id, "VAULT_RESET");
+    refresh();
     return {};
   });
 }

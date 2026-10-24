@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getVaultAccount } from "@/lib/vault-data";
+import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/page";
 import { ProfileSkeleton } from "@/components/skeletons";
 import { VaultSettings } from "@/components/vault/vault-settings";
@@ -16,7 +17,7 @@ export default function VaultSettingsPage() {
 }
 
 async function Settings() {
-  const account = await getVaultAccount();
+  const [account, user] = await Promise.all([getVaultAccount(), requireUser()]);
   if (!account) return null;
-  return <VaultSettings account={account} />;
+  return <VaultSettings account={account} email={user.email} />;
 }

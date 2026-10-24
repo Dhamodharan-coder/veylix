@@ -41,8 +41,9 @@ npm run dev             # http://localhost:3000
 | `BETTER_AUTH_URL` | `http://localhost:3000` locally, your real URL in production |
 | `ENCRYPTION_KEY` | `openssl rand -base64 32`. **Never change it** once secrets are stored, or they can't be decrypted |
 | `EMAIL_ENABLED` | `false` (default): no emails, sign-up logs straight in, reset links print in the terminal. `true`: emails sent and verification required |
-| `RESEND_API_KEY` | resend.com → API Keys. Leave empty in dev: email links are printed in the terminal |
-| `EMAIL_FROM` | `onboarding@resend.dev` works for testing (only delivers to your own Resend account email). Verify a domain to email anyone |
+| `EMAIL_FROM` | Sender, e.g. `Veylix <no-reply@yourdomain.com>`. Must be an address your provider allows you to send from |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` | Any SMTP provider via Nodemailer (see the Email section). Or set `SMTP_URL` instead |
+| `RESEND_API_KEY` | Alternative to SMTP: resend.com API key |
 | `GITHUB_CLIENT_*` | github.com/settings/developers → New OAuth App. Callback: `<BETTER_AUTH_URL>/api/auth/callback/github` |
 | `GOOGLE_CLIENT_*` | console.cloud.google.com → Credentials → OAuth client. Redirect: `<BETTER_AUTH_URL>/api/auth/callback/google` |
 
@@ -61,6 +62,35 @@ npm run build:extension      # builds extension/dist (use dev:extension to rebui
 On a login page you'll see a Veylix icon in the username field. Click it to pick a saved login and fill it. The toolbar popup lists logins for the current site with **Fill**, **Copy username/password** and **Open & fill**.
 
 Your master password and decrypted passwords never leave the extension. It only downloads ciphertext from `/api/extension/vault`, authenticated with your Veylix session. The unlocked key lives in the browser's in-memory session storage and auto-locks after your vault's timeout. If Veylix isn't on `http://localhost:3000`, set the URL with the ⚙️ in the popup.
+
+## Email
+
+Veylix sends verification and password-reset emails through **any SMTP provider** (via Nodemailer) or Resend, configured entirely in `.env`:
+
+```bash
+EMAIL_ENABLED="true"
+EMAIL_FROM="Veylix <no-reply@yourdomain.com>"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT="587"
+SMTP_SECURE="false"
+SMTP_USER="you@gmail.com"
+SMTP_PASS="your-app-password"
+```
+
+| Provider | `SMTP_HOST` | Port | Notes |
+|---|---|---|---|
+| Gmail | `smtp.gmail.com` | 587 | Needs 2-Step Verification + an **App password** (~500 emails/day) |
+| Outlook / Microsoft 365 | `smtp.office365.com` | 587 | SMTP AUTH must be enabled for the mailbox |
+| Zoho Mail | `smtp.zoho.com` (`smtp.zoho.in` for India) | 465 (`SMTP_SECURE="true"`) | Use an app-specific password |
+| Amazon SES | `email-smtp.<region>.amazonaws.com` | 587 | SMTP credentials from the SES console |
+| Brevo | `smtp-relay.brevo.com` | 587 | Free tier: 300 emails/day |
+| Resend (SMTP) | `smtp.resend.com` | 465 | User `resend`, password = API key |
+
+The provider is picked automatically (SMTP if `SMTP_HOST`/`SMTP_URL` is set, otherwise Resend if `RESEND_API_KEY` is set, otherwise links are printed to the terminal). Check your settings before relying on them:
+
+```bash
+npm run email:test -- you@example.com
+```
 
 ## Logo
 

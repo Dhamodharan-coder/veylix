@@ -44,9 +44,11 @@ export const auth = betterAuth({
         to: user.email,
         subject: "Reset your Veylix password",
         heading: "Reset your password",
-        body: "Someone requested a password reset for your account. This link expires in 1 hour. If it wasn't you, ignore this email.",
+        body: `Hi ${user.name}, we received a request to reset the password for your Veylix account. Click the button below to choose a new one.`,
         url,
         cta: "Reset password",
+        kind: "reset",
+        note: "This link expires in 1 hour and can only be used once.",
       });
     },
   },
@@ -58,10 +60,12 @@ export const auth = betterAuth({
       await sendMail({
         to: user.email,
         subject: "Verify your Veylix email",
-        heading: `Welcome, ${user.name}!`,
-        body: "Confirm your email address to finish creating your account. This link expires in 1 hour.",
+        heading: `Welcome to Veylix, ${user.name}!`,
+        body: "You're one step away from managing your environment variables and passwords securely. Confirm your email address to activate your account.",
         url,
-        cta: "Verify email",
+        cta: "Verify email address",
+        kind: "verify",
+        note: "This verification link expires in 1 hour.",
       });
     },
   },

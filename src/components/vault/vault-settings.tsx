@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CircleAlert, Lock, LoaderCircle } from "lucide-react";
+import { CircleAlert, KeyRound, Lock, LoaderCircle, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,18 +13,128 @@ import { StrengthMeter } from "@/components/vault/strength-meter";
 import { useVault } from "@/components/vault/vault-provider";
 import { notify } from "@/components/toast";
 import { passwordStrength } from "@/lib/password-strength";
-import { rewrapPrivateKey } from "@/lib/vault-crypto";
-import { changeMasterPassword, updateAutoLock } from "@/app/(app)/vault/actions";
+import { generateRecoveryKey, rewrapPrivateKey, sealPrivateKeyWithRecoveryKey, unlockPrivateKeyBytes } from "@/lib/vault-crypto";
+import { changeMasterPassword, setRecoveryKey, updateAutoLock } from "@/app/(app)/vault/actions";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { RecoveryKeyPanel } from "@/components/vault/recovery-key-panel";
+import { cn } from "@/lib/utils";
 import type { VaultAccountInfo } from "@/lib/vault-data";
 
 const LOCK_OPTIONS = [5, 15, 30, 60, 240] as const;
 
-export function VaultSettings({ account }: { account: VaultAccountInfo }) {
+export function VaultSettings({ account, email }: { account: VaultAccountInfo; email: string }) {
   return (
     <div className="flex max-w-3xl flex-col gap-6">
+      <RecoveryKeyCard account={account} email={email} />
       <AutoLockCard account={account} />
       <ChangeMasterPasswordCard account={account} />
     </div>
+  );
+}
+
+function RecoveryKeyCard({ account, email }: { account: VaultAccountInfo; email: string }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [master, setMaster] = useState("");
+  const [newKey, setNewKey] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const hasKey = !!account.recoveryWrappedPrivateKey;
+
+  const close = () => {
+    setOpen(false);
+    setMaster("");
+    setNewKey(null);
+    setError(null);
+  };
+
+  const create = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setPending(true);
+    setError(null);
+    try {
+      // The master password unseals the private key so it can be sealed again with the new recovery key.
+      const pkcs8 = await unlockPrivateKeyBytes(master, account);
+      const key = generateRecoveryKey();
+      const res = await setRecoveryKey(await sealPrivateKeyWithRecoveryKey(pkcs8, key));
+      if (!res.ok) throw new Error(res.error);
+      setNewKey(key);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn't create a recovery key");
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <Card className={cn("shadow-xs", !hasKey && "ring-warning/40")}>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          Recovery key
+          {hasKey ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-success/10 px-2 py-0.5 text-xs font-medium text-success">
+              <ShieldCheck className="size-3" /> Active
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-xs font-medium text-warning">
+              <TriangleAlert className="size-3" /> Not set up
+            </span>
+          )}
+        </CardTitle>
+        <CardDescription>
+          {hasKey
+            ? `Lets you reset a forgotten master password without losing data. Created ${account.recoveryCreatedAt ? new Date(account.recoveryCreatedAt).toLocaleDateString() : ""}.`
+            : "You don't have a recovery key. If you forget your master password, your vault data can't be recovered. Create one now."}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button variant={hasKey ? "outline" : "default"} onClick={() => setOpen(true)}>
+          <KeyRound /> {hasKey ? "Create a new recovery key" : "Create recovery key"}
+        </Button>
+        {hasKey && <p className="mt-2 text-xs text-muted-foreground">Creating a new key makes the old one stop working.</p>}
+      </CardContent>
+
+      <Dialog open={open} onOpenChange={(o) => !o && close()}>
+        <DialogContent className="sm:max-w-md">
+          {newKey ? (
+            <>
+              <DialogTitle className="sr-only">Your recovery key</DialogTitle>
+              <RecoveryKeyPanel
+                recoveryKey={newKey}
+                email={email}
+                doneLabel="Done"
+                onDone={() => {
+                  close();
+                  notify.success("Recovery key saved");
+                  router.refresh();
+                }}
+              />
+            </>
+          ) : (
+            <form onSubmit={create} className="grid gap-4">
+              <DialogHeader>
+                <DialogTitle>{hasKey ? "Create a new recovery key" : "Create recovery key"}</DialogTitle>
+                <DialogDescription>Enter your master password to generate a recovery key for this vault.</DialogDescription>
+              </DialogHeader>
+              {error && (
+                <Alert variant="destructive">
+                  <CircleAlert />
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+              <div className="grid gap-2">
+                <Label htmlFor="rk-master">Master password</Label>
+                <Input id="rk-master" type="password" value={master} onChange={(e) => setMaster(e.target.value)} autoFocus autoComplete="current-password" />
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={close}>Cancel</Button>
+                <Button disabled={pending || !master}>{pending ? <><LoaderCircle className="animate-spin" /> Creating…</> : "Generate key"}</Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }
 

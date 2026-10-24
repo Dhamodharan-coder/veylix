@@ -60,7 +60,8 @@ src/generated/prisma/           generated Prisma client (git-ignored)
 - Plaintext metadata by design: folder names, item name/URL/tags (search + audit). Username/password/notes are encrypted.
 - Keys live only in memory (`VaultProvider`). Reload or auto-lock clears them. Never add server-side decryption of vault data.
 - Sharing with someone who has no vault yet creates a pending row/invite. A manager's browser grants the key after unlock (`grantPending`). Removing a folder member offers key rotation (`rotateFolderKey`).
-- Known limits: View access can still reveal passwords; single-item revoke doesn't rotate the key (UI suggests changing the password); a forgotten master password is unrecoverable.
+- Recovery: setup creates a recovery key (160-bit, Crockford base32, `generateRecoveryKey`) that seals a second copy of the private key (`recoveryWrappedPrivateKey`). "Forgot master password?" → recovery key → new master password + rotated recovery key (`recoverVault`); without one, `resetVault` (login password or email confirmation) deletes owned vault data and resets shared access to "awaiting" so sharers re-grant it.
+- Known limits: View access can still reveal passwords; single-item revoke doesn't rotate the key (UI suggests changing the password); a vault with no recovery key can only be reset, not recovered.
 
 ## Browser extension (`extension/`)
 - Manifest V3 (Chromium). Sources in `extension/src` (`background.ts` service worker, `popup.ts`, `content.ts`, `shared.ts`). Built with esbuild by `scripts/build-extension.mjs` into `extension/dist` (git-ignored, load unpacked). Commands: `npm run build:extension`, `npm run dev:extension`, `npm run typecheck:extension`.
@@ -78,7 +79,7 @@ src/generated/prisma/           generated Prisma client (git-ignored)
 - After schema changes run `npx prisma generate`. `src/lib/db.ts` replaces a stale cached client automatically in dev.
 
 ## Environment variables
-See `.env.example`. Key ones: `DATABASE_URL` (pooled), `DIRECT_URL` (direct), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY` (Env Manager only, never rotate after use), `EMAIL_ENABLED` (`false` = no emails, no verification, no forgot-password), `RESEND_API_KEY`/`EMAIL_FROM`, optional `GITHUB_*`/`GOOGLE_*` OAuth. Email sending is centralized in `sendMail` (`src/lib/email.ts`), the single place to plug in a mail service.
+See `.env.example`. Key ones: `DATABASE_URL` (pooled), `DIRECT_URL` (direct), `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `ENCRYPTION_KEY` (Env Manager only, never rotate after use), `EMAIL_ENABLED` (`false` = no emails, no verification, no forgot-password), `EMAIL_FROM` + SMTP (`SMTP_HOST`/`PORT`/`SECURE`/`USER`/`PASS` or `SMTP_URL`, via Nodemailer) or `RESEND_API_KEY` (provider auto-detected in `src/lib/email.ts`; verify with `npm run email:test -- you@x.com`), optional `GITHUB_*`/`GOOGLE_*` OAuth. Email sending is centralized in `sendMail` (`src/lib/email.ts`), the single place to plug in a mail service.
 
 ## Docker
 - `Dockerfile` stages: `deps` → `builder` (standalone build with placeholder env) → `runner` (non-root, ~300 MB, healthcheck) and `migrate` (runs `prisma migrate deploy`).

@@ -13,6 +13,9 @@ export type VaultAccountInfo = {
   publicKey: string;
   encryptedPrivateKey: string;
   autoLockMinutes: number;
+  /** Private key sealed with the recovery key; null if none was created. */
+  recoveryWrappedPrivateKey: string | null;
+  recoveryCreatedAt: Date | null;
 };
 
 export type VaultFolderRecord = {
@@ -63,7 +66,15 @@ export async function getVaultAccount(): Promise<VaultAccountInfo | null> {
   const user = await requireUser();
   return prisma.vaultAccount.findUnique({
     where: { userId: user.id },
-    select: { kdfSalt: true, kdfIterations: true, publicKey: true, encryptedPrivateKey: true, autoLockMinutes: true },
+    select: {
+      kdfSalt: true,
+      kdfIterations: true,
+      publicKey: true,
+      encryptedPrivateKey: true,
+      autoLockMinutes: true,
+      recoveryWrappedPrivateKey: true,
+      recoveryCreatedAt: true,
+    },
   });
 }
 

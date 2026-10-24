@@ -136,16 +136,19 @@ enum VaultItemType {
 }
 
 model VaultAccount {
-  userId              String   @id
-  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  kdfSalt             String
-  kdfIterations       Int
-  publicKey           String
+  userId                    String    @id
+  user                      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kdfSalt                   String
+  kdfIterations             Int
+  publicKey                 String
   // RSA private key encrypted with the key derived from the master password
-  encryptedPrivateKey String
-  autoLockMinutes     Int      @default(15)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  encryptedPrivateKey       String
+  // Same private key encrypted with the recovery key (shown once to the user)
+  recoveryWrappedPrivateKey String?
+  recoveryCreatedAt         DateTime?
+  autoLockMinutes           Int       @default(15)
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   @@map("vault_account")
 }

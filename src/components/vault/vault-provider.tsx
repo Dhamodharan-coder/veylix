@@ -6,8 +6,11 @@ import {
   createVaultKeys,
   decryptJSON,
   generateDataKey,
+  generateRecoveryKey,
+  importPrivateKey,
   openKeyForUser,
   sealKeyForUser,
+  sealPrivateKeyWithRecoveryKey,
   unlockPrivateKey,
   unwrapKey,
   type VaultKeyMaterial,
@@ -20,8 +23,11 @@ export type ItemSecret = { username: string; password: string; notes: string };
 type VaultContextValue = {
   unlocked: boolean;
   publicKey: string | null;
-  setup: (masterPassword: string) => Promise<void>;
+  /** Creates the vault and returns the one-time recovery key to show the user. */
+  setup: (masterPassword: string) => Promise<string>;
   unlock: (masterPassword: string, account: VaultKeyMaterial & { autoLockMinutes: number }) => Promise<void>;
+  /** Unlock with raw private-key bytes (after recovering with a recovery key). */
+  unlockWithKey: (pkcs8: Uint8Array<ArrayBuffer>, account: { publicKey: string; autoLockMinutes: number }) => Promise<void>;
   lock: () => void;
   folderKey: (folder: Pick<VaultFolderRecord, "id" | "encryptedFolderKey">) => Promise<CryptoKey>;
   itemKey: (item: VaultItemRecord, folders: VaultFolderRecord[]) => Promise<CryptoKey>;
@@ -130,9 +136,14 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   );
 
   const setup = useCallback<VaultContextValue["setup"]>(async (masterPassword) => {
-    const { material, publicKey: pub } = await createVaultKeys(masterPassword);
+    const { material, publicKey: pub, pkcs8 } = await createVaultKeys(masterPassword);
     const personalKey = await generateDataKey();
-    const res = await createVaultAccount({ ...material, personalFolderKey: await sealKeyForUser(personalKey, pub) });
+    const recoveryKey = generateRecoveryKey();
+    const res = await createVaultAccount({
+      ...material,
+      personalFolderKey: await sealKeyForUser(personalKey, pub),
+      recoveryWrappedPrivateKey: await sealPrivateKeyWithRecoveryKey(pkcs8, recoveryKey),
+    });
     if (!res.ok) throw new Error(res.error);
     // Unseal through the normal path so the in-memory key is non-extractable.
     privateKeyRef.current = await unlockPrivateKey(masterPassword, material);
@@ -140,7 +151,20 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     setPublicKey(material.publicKey);
     setUnlocked(true);
     void grantPending();
+    return recoveryKey;
   }, [grantPending]);
+
+  const unlockWithKey = useCallback<VaultContextValue["unlockWithKey"]>(
+    async (pkcs8, account) => {
+      privateKeyRef.current = await importPrivateKey(pkcs8);
+      cacheRef.current.clear();
+      setPublicKey(account.publicKey);
+      setAutoLockMinutes(account.autoLockMinutes);
+      setUnlocked(true);
+      void grantPending();
+    },
+    [grantPending],
+  );
 
   // Teammates may finish their vault setup while we're already unlocked, so keep
   // checking for people waiting on a key (periodically and when the tab regains focus).
@@ -182,8 +206,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [unlocked, autoLockMinutes, lock]);
 
   const value = useMemo(
-    () => ({ unlocked, publicKey, setup, unlock, lock, folderKey, itemKey, decryptItem, openSealed, grantPending }),
-    [unlocked, publicKey, setup, unlock, lock, folderKey, itemKey, decryptItem, openSealed, grantPending],
+    () => ({ unlocked, publicKey, setup, unlock, unlockWithKey, lock, folderKey, itemKey, decryptItem, openSealed, grantPending }),
+    [unlocked, publicKey, setup, unlock, unlockWithKey, lock, folderKey, itemKey, decryptItem, openSealed, grantPending],
   );
 
   return <VaultContext value={value}>{children}</VaultContext>;
