@@ -1,4 +1,4 @@
-import { displayHost, send, type Login, type Status } from "./shared";
+import { displayHost, send, type Login, type SavePrompt, type Status } from "./shared";
 import { biometricLabel, biometricSupported, evaluateBiometric, registerBiometric } from "./biometric";
 
 // The UI also runs in a standalone window (opened for fingerprint prompts or
@@ -145,6 +145,7 @@ async function renderVault(status: Extract<Status, { state: "unlocked" }>) {
   const host = displayHost(pageUrl);
 
   view.innerHTML = `
+    <div id="pending-save"></div>
     <div class="search"><input id="search" type="search" placeholder="Search all logins…" autocomplete="off" /></div>
     <div id="lists"></div>
     <div class="footer">
@@ -153,6 +154,7 @@ async function renderVault(status: Extract<Status, { state: "unlocked" }>) {
     </div>`;
 
   const lists = document.getElementById("lists")!;
+  if (tab?.id) void renderPendingSave(tab.id);
   const row = (l: Login, canFill: boolean) => `
     <li class="item" data-id="${l.id}">
       <span class="avatar" style="background:${colorFor(l.name)}">${escape(l.name[0] ?? "?")}</span>
@@ -233,6 +235,34 @@ function renderBiometricSetup(status: Extract<Status, { state: "unlocked" }>) {
       <button class="btn" id="bio-setup" style="margin-top:6px">${ICONS.fingerprint} Set up ${biometricLabel()}</button>
     </div>`;
   document.getElementById("bio-setup")!.addEventListener("click", () => setUpBiometric(status));
+}
+
+/** A login captured on this tab that is waiting to be saved (e.g. after "Unlock & save"). */
+async function renderPendingSave(tabId: number) {
+  const box = document.getElementById("pending-save");
+  const res = await send<SavePrompt | null>({ type: "pendingSave", tabId });
+  if (!box || !res.ok || !res.data || res.data.locked) return;
+  const p = res.data;
+  box.innerHTML = `
+    <div style="margin:10px 14px 0;padding:12px;border-radius:10px;background:rgb(37 99 235 / .08);box-shadow:inset 0 0 0 1px rgb(37 99 235 / .25)">
+      <p style="margin:0;font-weight:600">${p.kind === "update" ? `Update password for ${escape(p.name)}?` : `Save login for ${escape(p.host)}?`}</p>
+      ${p.username ? `<p class="muted" style="margin:2px 0 0;font-size:12px">${escape(p.username)}</p>` : ""}
+      ${p.breached ? `<p style="margin:6px 0 0;font-size:12px;color:var(--destructive)">⚠ Found in ${p.breached.toLocaleString()} data breaches</p>` : ""}
+      <div style="display:flex;gap:6px;margin-top:10px">
+        <button class="btn sm" id="ps-save">${p.kind === "update" ? "Update" : "Save"}</button>
+        <button class="btn sm outline" id="ps-later">Not now</button>
+      </div>
+    </div>`;
+  document.getElementById("ps-later")!.addEventListener("click", async () => {
+    await send({ type: "dismissPending", tabId });
+    box.innerHTML = "";
+  });
+  document.getElementById("ps-save")!.addEventListener("click", async () => {
+    const r = await send<string>({ type: "savePending", tabId, name: p.name, folderId: p.defaultFolderId ?? "" });
+    if (!r.ok) return toast(r.error, true);
+    toast(r.data === "updated" ? "Password updated" : "Saved to Veylix");
+    await refresh();
+  });
 }
 
 async function renderSettings(status: Status) {

@@ -7,16 +7,18 @@ Two separate modules, switched from the top of the sidebar:
 **Env Manager** (`/dashboard`, `/projects`)
 - Projects → environments (development / staging / production) → variables
 - Values encrypted server-side with **AES-256-GCM** (`ENCRYPTION_KEY`)
-- Import a pasted `.env`, download any environment as `.env`
+- Import a pasted or uploaded `.env`, download any environment as `.env`
+- **API tokens + `veylix` CLI + REST API** to pull variables into apps and CI (see below)
 
 **Vault** (`/vault`): a Zoho Vault–style password manager
 - Unlocked with a **master password** (separate from the login password, never stored or sent)
 - **Zero-knowledge**: logins and notes are encrypted in the browser (WebCrypto). Master password → PBKDF2 (600k) → HKDF → wraps the user's RSA-OAEP private key; folder and item keys are AES-256-GCM
 - Folders, favorites, tags, password generator and strength meter
 - Share a folder or a single password with **View / Modify / Manage** permissions; people who haven't set up a vault yet get access automatically once they do
-- Key rotation after removing someone, an audit log, and security reports (weak, reused, old passwords and access overview)
+- Key rotation after removing someone, an audit log, and security reports (weak, reused, old and **breached** passwords, plus access overview)
+- **Breach check** via Have I Been Pwned (k-anonymity: only 5 characters of a SHA-1 hash leave the device)
 - Auto-lock after inactivity; reloading the page locks the vault
-- ⚠️ A forgotten master password can't be recovered
+- Recovery key (shown at setup) to reset a forgotten master password; otherwise the vault can be reset
 
 **Accounts**
 - Email + password sign-up (email verification when `EMAIL_ENABLED="true"`)
@@ -61,7 +63,46 @@ npm run build:extension      # builds extension/dist (use dev:extension to rebui
 
 On a login page you'll see a Veylix icon in the username field. Click it to pick a saved login and fill it. The toolbar popup lists logins for the current site with **Fill**, **Copy username/password** and **Open & fill**.
 
+After you log in on a site, the extension offers **"Save this login to Veylix?"**, or **"Update password?"** when the site is already saved with a different password, and warns if the password appears in known breaches. Choose a name and folder, or pick **Never for this site**.
+
 Your master password and decrypted passwords never leave the extension. It only downloads ciphertext from `/api/extension/vault`, authenticated with your Veylix session. The unlocked key lives in the browser's in-memory session storage and auto-locks after your vault's timeout. If Veylix isn't on `http://localhost:3000`, set the URL with the ⚙️ in the popup.
+
+## CLI & API (Env Manager)
+
+Create a token in **Settings → API tokens**. It's scoped to one project (optionally one environment), read-only or read-write, with an optional expiry, and is shown once.
+
+```bash
+npm install -g ./cli                 # installs the `veylix` command (Node 18+, no dependencies)
+
+veylix login --url https://your-veylix.app --token vlx_…
+veylix envs                          # environments + variable counts
+veylix pull --env production > .env  # or --format json|shell, --output file
+veylix run --env staging -- npm start    # inject variables, no .env file written
+veylix push --env development --file .env [--replace]
+veylix set API_KEY=abc --env development
+veylix unset API_KEY --env development
+```
+
+In CI, skip `login` and set `VEYLIX_TOKEN` and `VEYLIX_URL` (and optionally `VEYLIX_ENV`) as secrets:
+
+```yaml
+# GitHub Actions
+- run: node cli/veylix.mjs run --env production -- npm run deploy
+  env:
+    VEYLIX_TOKEN: ${{ secrets.VEYLIX_TOKEN }}
+    VEYLIX_URL: https://your-veylix.app
+```
+
+**REST API**, with `Authorization: Bearer vlx_…` on every request:
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/me` | Token's project, access and environments |
+| `GET` | `/api/v1/secrets?env=production[&format=dotenv]` | Variables as JSON (or `.env` text) |
+| `PUT` | `/api/v1/secrets` | Body `{ "env": "…", "secrets": { "KEY": "value" }, "replace": false }`, read-write tokens |
+| `DELETE` | `/api/v1/secrets?env=…&key=KEY` | Delete one variable, read-write tokens |
+
+Tokens are stored only as SHA-256 hashes, rate-limited (120 requests/min), and stop working when revoked, expired, or if their creator no longer owns the project.
 
 ## Email
 

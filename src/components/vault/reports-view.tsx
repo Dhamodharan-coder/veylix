@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, Copy, ShieldAlert, ShieldCheck, ShieldX, Users } from "lucide-react";
+import { CalendarClock, Copy, ShieldAlert, ShieldCheck, ShieldX } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,7 @@ import { ItemDialog, type ItemDialogMode } from "@/components/vault/item-dialog"
 import { PERMISSION_LABEL, avatarColor, hostname, useDecrypted } from "@/components/vault/use-decrypted";
 import { passwordStrength } from "@/lib/password-strength";
 import { sha256Hex } from "@/lib/vault-crypto";
+import { formatBreachCount, pwnedCount } from "@/lib/breach-check";
 import type { VaultSnapshot, VaultItemRecord } from "@/lib/vault-data";
 import type { getAccessOverview } from "@/app/(app)/vault/actions";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,8 @@ export function ReportsView({ snapshot, overview }: { snapshot: VaultSnapshot; o
   const [dialog, setDialog] = useState<ItemDialogMode | null>(null);
   // Reports are evaluated against the moment the page was opened.
   const [now] = useState(() => Date.now());
+  // itemId → times seen in breaches (Have I Been Pwned, k-anonymity); "error" if the check failed.
+  const [breaches, setBreaches] = useState<Map<string, number> | "error" | null>(null);
 
   // Compare passwords by hash in memory to find reuse without keeping copies around.
   useEffect(() => {
@@ -42,6 +45,26 @@ export function ReportsView({ snapshot, overview }: { snapshot: VaultSnapshot; o
         return [i.id, s && s !== "error" && s.password ? await sha256Hex(s.password) : ""] as const;
       }),
     ).then((entries) => !cancelled && setHashes(new Map(entries)));
+    return () => {
+      cancelled = true;
+    };
+  }, [ready, logins, secrets]);
+
+  // Check each distinct password once against known data breaches.
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    const passwords = new Map<string, string[]>();
+    for (const i of logins) {
+      const s = secrets.get(i.id);
+      if (s && s !== "error" && s.password) passwords.set(s.password, [...(passwords.get(s.password) ?? []), i.id]);
+    }
+    Promise.all([...passwords].map(async ([pw, ids]) => ({ ids, count: await pwnedCount(pw) })))
+      .then((results) => {
+        if (cancelled) return;
+        setBreaches(new Map(results.flatMap(({ ids, count }) => ids.map((id) => [id, count] as const))));
+      })
+      .catch(() => !cancelled && setBreaches("error"));
     return () => {
       cancelled = true;
     };
@@ -69,10 +92,20 @@ export function ReportsView({ snapshot, overview }: { snapshot: VaultSnapshot; o
       .filter((o) => o.days >= OLD_DAYS)
       .sort((a, b) => b.days - a.days);
 
-    const atRisk = new Set([...weak.map((w) => w.item.id), ...reused.flat().map((i) => i.id), ...old.map((o) => o.item.id)]);
+    const breached =
+      breaches instanceof Map
+        ? withPassword.map((i) => ({ item: i, count: breaches.get(i.id) ?? 0 })).filter((b) => b.count > 0).sort((a, b) => b.count - a.count)
+        : [];
+
+    const atRisk = new Set([
+      ...weak.map((w) => w.item.id),
+      ...reused.flat().map((i) => i.id),
+      ...old.map((o) => o.item.id),
+      ...breached.map((b) => b.item.id),
+    ]);
     const score = withPassword.length ? Math.round(100 * (1 - atRisk.size / withPassword.length)) : 100;
-    return { total: withPassword.length, weak, reused, reusedCount: reused.flat().length, old, score, shared: items.filter((i) => i.shared).length };
-  }, [hashes, logins, secrets, items, now]);
+    return { total: withPassword.length, weak, reused, reusedCount: reused.flat().length, old, breached, score, shared: items.filter((i) => i.shared).length };
+  }, [hashes, logins, secrets, items, now, breaches]);
 
   const open = (item: VaultItemRecord) => {
     const s = secrets.get(item.id);
@@ -93,7 +126,12 @@ export function ReportsView({ snapshot, overview }: { snapshot: VaultSnapshot; o
     { label: "Weak passwords", value: report.weak.length, icon: ShieldX, tone: "text-destructive bg-destructive/10" },
     { label: "Reused passwords", value: report.reusedCount, icon: Copy, tone: "text-warning bg-warning/10" },
     { label: `Older than ${OLD_DAYS} days`, value: report.old.length, icon: CalendarClock, tone: "text-warning bg-warning/10" },
-    { label: "Shared items", value: report.shared, icon: Users, tone: "text-primary bg-primary/10" },
+    {
+      label: "Found in breaches",
+      value: breaches === null ? "…" : breaches === "error" ? "?" : report.breached.length,
+      icon: ShieldAlert,
+      tone: "text-destructive bg-destructive/10",
+    },
   ];
 
   return (
@@ -134,13 +172,36 @@ export function ReportsView({ snapshot, overview }: { snapshot: VaultSnapshot; o
         </div>
       </div>
 
-      <Tabs defaultValue="weak" className="mt-6">
-        <TabsList>
+      <Tabs defaultValue="breached" className="mt-6">
+        <TabsList className="flex-wrap">
+          <TabsTrigger value="breached">Breached ({breaches instanceof Map ? report.breached.length : "…"})</TabsTrigger>
           <TabsTrigger value="weak">Weak ({report.weak.length})</TabsTrigger>
           <TabsTrigger value="reused">Reused ({report.reusedCount})</TabsTrigger>
           <TabsTrigger value="old">Old ({report.old.length})</TabsTrigger>
-          <TabsTrigger value="access">Access</TabsTrigger>
+          <TabsTrigger value="access">Access ({report.shared} shared)</TabsTrigger>
         </TabsList>
+
+        <TabsContent value="breached">
+          {breaches === null ? (
+            <Card className="py-14 text-center text-sm text-muted-foreground shadow-xs">Checking your passwords against known data breaches…</Card>
+          ) : breaches === "error" ? (
+            <Card className="py-14 text-center text-sm text-muted-foreground shadow-xs">Couldn&apos;t reach the breach database. Check your connection and reload.</Card>
+          ) : (
+            <ReportCard empty={report.breached.length === 0} emptyText="None of your passwords appear in known data breaches.">
+              <ItemTable
+                rows={report.breached.map(({ item, count }) => ({
+                  item,
+                  detail: <Badge variant="destructive">Seen {formatBreachCount(count)}× in breaches</Badge>,
+                  hint: "Attackers try these passwords first. Change it everywhere you use it.",
+                }))}
+                onFix={open}
+              />
+            </ReportCard>
+          )}
+          <p className="mt-2 text-xs text-muted-foreground">
+            Checked privately with Have I Been Pwned: only the first 5 characters of each password&apos;s SHA-1 hash are sent, never the password.
+          </p>
+        </TabsContent>
 
         <TabsContent value="weak">
           <ReportCard empty={report.weak.length === 0} emptyText="No weak passwords. Nice work.">

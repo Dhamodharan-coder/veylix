@@ -18,6 +18,16 @@ import { CLIENT_ACCESS_ACTIONS, VAULT_ACTIONS, logVaultEvent } from "@/lib/vault
 import { RateLimitError, enforce } from "@/lib/rate-limit";
 import type { VaultPermission } from "@/generated/prisma/client";
 
+/** Refreshes the open page after a change. A no-op when an action is reused by an
+ * API route (e.g. the browser extension), where Next.js doesn't allow refresh(). */
+function revalidate() {
+  try {
+    refresh();
+  } catch {
+    // Not inside a Server Action.
+  }
+}
+
 type Result<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string };
 
 /** Turns access/validation failures into `{ ok: false, error }` for the UI. */
@@ -146,7 +156,7 @@ export async function setRecoveryKey(recoveryWrappedPrivateKey: string) {
       data: { recoveryWrappedPrivateKey: cipher.parse(recoveryWrappedPrivateKey), recoveryCreatedAt: new Date() },
     });
     await logVaultEvent(user.id, "RECOVERY_KEY_CREATED");
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -197,7 +207,7 @@ export async function resetVault(confirmation: { password?: string; email?: stri
       prisma.vaultAccount.delete({ where: { userId: user.id } }),
     ]);
     await logVaultEvent(user.id, "VAULT_RESET");
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -207,7 +217,7 @@ export async function updateAutoLock(minutes: number) {
     const user = await requireVaultUser();
     const value = z.union([z.literal(5), z.literal(15), z.literal(30), z.literal(60), z.literal(240)]).parse(minutes);
     await prisma.vaultAccount.update({ where: { userId: user.id }, data: { autoLockMinutes: value } });
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -242,7 +252,7 @@ export async function createFolder(input: { name: string; encryptedFolderKey: st
       },
     });
     await logVaultEvent(user.id, "FOLDER_CREATED", { folderId: folder.id, targetName: folder.name });
-    refresh();
+    revalidate();
     return { folderId: folder.id };
   });
 }
@@ -255,7 +265,7 @@ export async function renameFolder(folderId: string, newName: string) {
     const parsed = name.parse(newName);
     await prisma.vaultFolder.update({ where: { id: folderId }, data: { name: parsed } });
     await logVaultEvent(user.id, "FOLDER_RENAMED", { folderId, targetName: parsed, metadata: { from: folder.name } });
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -267,7 +277,7 @@ export async function deleteFolder(folderId: string) {
     if (folder.isPersonal) throw new VaultAccessError("Your personal vault can't be deleted.");
     await logVaultEvent(user.id, "FOLDER_DELETED", { folderId, targetName: folder.name });
     await prisma.vaultFolder.delete({ where: { id: folderId } });
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -291,7 +301,7 @@ export async function createItem(input: {
       data: { ...data, createdById: user.id, updatedById: user.id },
     });
     await logVaultEvent(user.id, "ITEM_CREATED", { itemId: item.id, folderId: item.folderId, targetName: item.name });
-    refresh();
+    revalidate();
     return { itemId: item.id };
   });
 }
@@ -307,7 +317,7 @@ export async function updateItem(itemId: string, input: { name: string; url: str
       data: { ...fields, updatedById: user.id, ...(passwordChanged ? { passwordUpdatedAt: new Date() } : {}) },
     });
     await logVaultEvent(user.id, "ITEM_UPDATED", { itemId, folderId: item.folderId, targetName: fields.name, metadata: { passwordChanged } });
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -321,7 +331,7 @@ export async function deleteItem(itemId: string) {
     if (!access || !atLeast(access.viaFolder, "MODIFY")) throw new VaultAccessError("You don't have permission to delete this password.");
     await logVaultEvent(user.id, "ITEM_DELETED", { folderId: access.item.folderId, targetName: access.item.name });
     await prisma.vaultItem.delete({ where: { id: itemId } });
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -344,7 +354,7 @@ export async function moveItem(itemId: string, targetFolderId: string, encrypted
       targetName: access.item.name,
       metadata: { from: access.item.folder.name, to: target.folder.name },
     });
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -357,7 +367,7 @@ export async function toggleFavorite(itemId: string) {
     const existing = await prisma.vaultFavorite.findUnique({ where: key });
     if (existing) await prisma.vaultFavorite.delete({ where: key });
     else await prisma.vaultFavorite.create({ data: { userId: user.id, itemId } });
-    refresh();
+    revalidate();
     return { favorite: !existing };
   });
 }
@@ -420,7 +430,7 @@ export async function shareFolder(folderId: string, input: ShareInput) {
       await prisma.vaultInvite.create({ data: { folderId, email: data.email, permission: data.permission, invitedById: user.id } });
     }
     await logVaultEvent(user.id, "FOLDER_SHARED", { folderId, targetName: folder.name, metadata: { with: data.email, permission: data.permission } });
-    refresh();
+    revalidate();
     return { pending: !sealedKey };
   });
 }
@@ -442,7 +452,7 @@ export async function shareItem(itemId: string, input: ShareInput) {
       await prisma.vaultInvite.create({ data: { itemId, email: data.email, permission: data.permission, invitedById: user.id } });
     }
     await logVaultEvent(user.id, "ITEM_SHARED", { itemId, folderId: item.folderId, targetName: item.name, metadata: { with: data.email, permission: data.permission } });
-    refresh();
+    revalidate();
     return { pending: !sealedKey };
   });
 }
@@ -518,7 +528,7 @@ export async function updateAccess(kind: AccessEntry["kind"], id: string, permis
     else if (kind === "itemShare") await prisma.vaultItemShare.update({ where: { id }, data: { permission: level } });
     else await prisma.vaultInvite.update({ where: { id }, data: { permission: level } });
     await logVaultEvent(entry.user.id, "ACCESS_CHANGED", { folderId: entry.folderId, itemId: entry.itemId, targetName: entry.label, metadata: { who: entry.who, permission: level } });
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -530,7 +540,7 @@ export async function revokeAccess(kind: AccessEntry["kind"], id: string) {
     else if (kind === "itemShare") await prisma.vaultItemShare.delete({ where: { id } });
     else await prisma.vaultInvite.delete({ where: { id } });
     await logVaultEvent(entry.user.id, "ACCESS_REVOKED", { folderId: entry.folderId, itemId: entry.itemId, targetName: entry.label, metadata: { who: entry.who } });
-    refresh();
+    revalidate();
     return {};
   });
 }
@@ -673,7 +683,7 @@ export async function rotateFolderKey(
       ...data.items.flatMap((i) => i.shares.map((s) => prisma.vaultItemShare.update({ where: { id: s.shareId, itemId: i.itemId }, data: { encryptedItemKey: s.sealedKey } }))),
     ]);
     await logVaultEvent(user.id, "KEY_ROTATED", { folderId, targetName: folder.name, metadata: { items: data.items.length } });
-    refresh();
+    revalidate();
     return {};
   });
 }

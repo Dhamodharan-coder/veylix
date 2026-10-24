@@ -20,6 +20,7 @@ export const LIMITS = {
   envReveal: { max: 120, windowSec: 60 },
   envExport: { max: 30, windowSec: 60 },
   envWrite: { max: 120, windowSec: 60 },
+  apiToken: { max: 120, windowSec: 60 }, // per API token (CLI / CI)
 } satisfies Record<string, Rule>;
 
 export class RateLimitError extends Error {

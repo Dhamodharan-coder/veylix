@@ -39,10 +39,30 @@ export type Request =
   | { type: "disableBiometric" }
   | { type: "biometricUnlock"; prf: string }
   | { type: "openWindow"; params: Record<string, string> }
+  // save-login prompt (tabId given when asked from the popup)
+  | { type: "captureLogin"; username: string; password: string }
+  | { type: "pendingSave"; tabId?: number }
+  | { type: "savePending"; tabId?: number; name: string; folderId: string }
+  | { type: "dismissPending"; tabId?: number; never?: boolean }
   // from the content script
   | { type: "pageMatches" }
   | { type: "fillHere"; itemId: string }
   | { type: "openUnlock" };
+
+/** What to ask after a login was submitted on a page. Never includes the password. */
+export type SavePrompt = {
+  kind: "save" | "update";
+  host: string;
+  username: string;
+  /** Suggested name for a new login (the site's host). */
+  name: string;
+  /** Vault locked: we can't tell yet whether it's new, so unlock first. */
+  locked: boolean;
+  /** Times this password appears in known breaches (null = check unavailable). */
+  breached: number | null;
+  folders: { id: string; name: string }[];
+  defaultFolderId: string | null;
+};
 
 export type Response<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
 

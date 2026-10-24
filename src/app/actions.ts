@@ -8,6 +8,7 @@ import { decrypt, encrypt } from "@/lib/crypto";
 import { requireUser } from "@/lib/session";
 import { assertEnvironmentOwner, DEFAULT_ENVIRONMENTS } from "@/lib/projects";
 import { LIMITS, RateLimitError, enforce } from "@/lib/rate-limit";
+import { generateToken } from "@/lib/api-tokens";
 
 export type ActionState = { error?: string; ok?: boolean } | null;
 
@@ -236,4 +237,53 @@ function parseDotenv(content: string): [string, string][] {
     out.set(match[1], value);
   }
   return [...out];
+}
+
+// ---------- API tokens (CLI / CI) ----------
+
+const tokenInput = z.object({
+  name: z.string().trim().min(1, "Give the token a name").max(60),
+  projectId: z.string().min(1, "Choose a project"),
+  environmentId: z.string().nullable(),
+  access: z.enum(["READ", "READ_WRITE"]),
+  expiresInDays: z.union([z.literal(30), z.literal(90), z.literal(365)]).nullable(),
+});
+
+/** Creates a token and returns it once; only its hash is stored. */
+export async function createApiToken(input: z.input<typeof tokenInput>): Promise<{ token: string } | { error: string }> {
+  const user = await requireUser();
+  const tooMany = await limited("envWrite", user.id);
+  if (tooMany) return tooMany;
+  const parsed = tokenInput.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
+  const data = parsed.data;
+
+  const project = await prisma.project.findFirst({
+    where: { id: data.projectId, ownerId: user.id },
+    select: { id: true, environments: { select: { id: true } } },
+  });
+  if (!project) return { error: "Project not found." };
+  if (data.environmentId && !project.environments.some((e) => e.id === data.environmentId)) return { error: "Environment not found." };
+
+  const { token, tokenHash, prefix } = generateToken();
+  await prisma.apiToken.create({
+    data: {
+      name: data.name,
+      tokenHash,
+      prefix,
+      userId: user.id,
+      projectId: project.id,
+      environmentId: data.environmentId,
+      access: data.access,
+      expiresAt: data.expiresInDays ? new Date(Date.now() + data.expiresInDays * 86_400_000) : null,
+    },
+  });
+  refresh();
+  return { token };
+}
+
+export async function revokeApiToken(tokenId: string) {
+  const user = await requireUser();
+  await prisma.apiToken.deleteMany({ where: { id: tokenId, userId: user.id } });
+  refresh();
 }

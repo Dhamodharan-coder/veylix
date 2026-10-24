@@ -64,6 +64,14 @@ src/generated/prisma/           generated Prisma client (git-ignored)
 - Recovery: setup creates a recovery key (160-bit, Crockford base32, `generateRecoveryKey`) that seals a second copy of the private key (`recoveryWrappedPrivateKey`). "Forgot master password?" → recovery key → new master password + rotated recovery key (`recoverVault`); without one, `resetVault` (login password or email confirmation) deletes owned vault data and resets shared access to "awaiting" so sharers re-grant it.
 - Known limits: View access can still reveal passwords; single-item revoke doesn't rotate the key (UI suggests changing the password); a vault with no recovery key can only be reset, not recovered.
 
+## Env Manager API & CLI
+- **Tokens:** `ApiToken` model: `vlx_` + 256-bit base64url, stored as SHA-256 (`src/lib/api-tokens.ts`), scoped to a project (optional environment), `READ`/`READ_WRITE`, optional expiry. Created/revoked via `createApiToken`/`revokeApiToken` in `src/app/actions.ts`; UI in `src/app/(app)/settings/api-tokens.tsx`.
+- **REST API:** `src/app/api/v1/{me,secrets}/route.ts`. Each handler calls `await connection()` first (cacheComponents would otherwise try to prerender GET handlers). `authenticateToken` enforces scope, expiry, ownership and the `apiToken` rate limit. Throw `ApiError` for expected failures; `apiErrorResponse` rethrows anything else so Next.js internals aren't swallowed.
+- **CLI:** `cli/veylix.mjs`, a zero-dependency Node 18+ ESM script (`npm install -g ./cli`). Config in `~/.config/veylix/config.json` (mode 600), overridable with `VEYLIX_TOKEN`/`VEYLIX_URL`/`VEYLIX_ENV`.
+
+## Breach check
+- `src/lib/breach-check.ts` (`pwnedCount`): HIBP Pwned Passwords range API with k-anonymity and `Add-Padding`. Browser and extension only, no Next imports. Used in Security Reports (Breached tab, counts toward the score), `BreachWarning` in the item dialog, and the extension save prompt.
+
 ## Browser extension (`extension/`)
 - Manifest V3 (Chromium). Sources in `extension/src` (`background.ts` service worker, `popup.ts`, `content.ts`, `shared.ts`). Built with esbuild by `scripts/build-extension.mjs` into `extension/dist` (git-ignored, load unpacked). Commands: `npm run build:extension`, `npm run dev:extension`, `npm run typecheck:extension`.
 - It **reuses `src/lib/vault-crypto.ts`** (bundled in), so keep that module free of Node/Next imports.
@@ -72,6 +80,7 @@ src/generated/prisma/           generated Prisma client (git-ignored)
 - Unlocked state = PKCS#8 private key in `chrome.storage.session` (memory-only, not readable by content scripts), cleared by an `alarms` auto-lock.
 - Biometric unlock (Touch ID / Windows Hello) uses the **WebAuthn PRF** extension (`extension/src/biometric.ts`): the PRF output → HKDF → AES key encrypts the PKCS#8 key into `chrome.storage.local` (`biometric`), bound to the server URL + vault public key. Without a fingerprint it can't be decrypted. WebAuthn ceremonies run in a standalone extension window (`popup.html?window=1`), because the OS prompt would close the toolbar popup.
 - Clicking the in-page icon while locked opens the popup (`chrome.action.openPopup`, falling back to the window). Never collect the master password inside a web page.
+- **Save-login prompt** (`extension/src/save-prompt.ts`): captures credentials on submit/Enter/login-button click, stores them per tab in `chrome.storage.session` (3-minute TTL), and asks the background via `pendingSave`. The background decides save, update or already-saved, then encrypts and calls `POST /api/extension/items` or `PATCH /api/extension/items/:id`. These routes reuse the vault `createItem`/`updateItem` actions, so vault actions use `revalidate()` (refresh is a no-op outside Server Actions). "Never for this site" lives in `chrome.storage.local.neverSave`.
 - The content script only ever receives names/usernames for matching logins. Passwords are injected by the background via `chrome.scripting.executeScript` (`fillCredentials` uses the native value setter so React/Angular inputs update). `fillHere` refuses to fill a login on a non-matching domain.
 
 ## Database workflow

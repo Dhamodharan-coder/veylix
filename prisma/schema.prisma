@@ -27,6 +27,7 @@ model User {
   vaultItemShares  VaultItemShare[]    @relation("VaultShareRecipient")
   vaultFavorites   VaultFavorite[]
   vaultAuditLogs   VaultAuditLog[]
+  apiTokens        ApiToken[]
 
   @@map("user")
 }
@@ -97,6 +98,7 @@ model Project {
   ownerId      String
   owner        User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   environments Environment[]
+  apiTokens    ApiToken[]
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
@@ -105,12 +107,13 @@ model Project {
 }
 
 model Environment {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
   projectId String
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
   secrets   Secret[]
-  createdAt DateTime @default(now())
+  apiTokens ApiToken[]
+  createdAt DateTime   @default(now())
 
   @@unique([projectId, name])
   @@map("environment")
@@ -286,4 +289,34 @@ model VaultAuditLog {
   @@index([folderId, createdAt])
   @@index([itemId, createdAt])
   @@map("vault_audit_log")
+}
+
+// ---------- Env Manager API tokens (CLI / CI) ----------
+
+enum ApiTokenAccess {
+  READ
+  READ_WRITE
+}
+
+model ApiToken {
+  id            String         @id @default(cuid())
+  name          String
+  // SHA-256 of the token; the token itself is shown once and never stored
+  tokenHash     String         @unique
+  // First characters (e.g. "vlx_Ab12") so users can recognise a token
+  prefix        String
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId     String
+  project       Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // null = every environment of the project
+  environmentId String?
+  environment   Environment?   @relation(fields: [environmentId], references: [id], onDelete: Cascade)
+  access        ApiTokenAccess @default(READ)
+  expiresAt     DateTime?
+  lastUsedAt    DateTime?
+  createdAt     DateTime       @default(now())
+
+  @@index([userId])
+  @@map("api_token")
 }

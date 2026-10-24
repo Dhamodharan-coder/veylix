@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PasswordGenerator } from "@/components/vault/password-generator";
 import { StrengthMeter } from "@/components/vault/strength-meter";
+import { BreachWarning } from "@/components/vault/breach-warning";
 import { useVault, type ItemSecret } from "@/components/vault/vault-provider";
 import { notify } from "@/components/toast";
 import { encryptJSON, generateDataKey, wrapKey } from "@/lib/vault-crypto";
@@ -211,6 +212,7 @@ function ItemForm({ mode, onClose, folders }: Props & { mode: ItemDialogMode }) 
                   </Button>
                 </div>
                 {password && <StrengthMeter password={password} />}
+                {!readOnly && <BreachWarning password={password} />}
               </div>
             </div>
             {showGenerator && !readOnly && (

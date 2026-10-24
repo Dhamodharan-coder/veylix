@@ -3,6 +3,7 @@
 // Passwords never enter this script; the background worker injects them.
 
 import { DEFAULT_BASE_URL, send, type LoginSummary } from "./shared";
+import { startSavePrompt } from "./save-prompt";
 
 const HOST_ID = "veylix-autofill-host";
 let host: HTMLElement | null = null;
@@ -141,6 +142,7 @@ async function start() {
     if (host && !e.composedPath().includes(host)) menu().hidden = true;
   });
   scan();
+  startSavePrompt();
 }
 
 void start();

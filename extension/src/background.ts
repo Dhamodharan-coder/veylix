@@ -5,20 +5,31 @@
 import {
   decryptJSON,
   decryptString,
+  encryptJSON,
   encryptString,
   fromB64,
+  generateDataKey,
   importPrivateKey,
   openKeyForUser,
   toB64,
   unlockPrivateKeyBytes,
   unwrapKey,
+  wrapKey,
 } from "../../src/lib/vault-crypto";
-import { DEFAULT_BASE_URL, matchScore, type BiometricInfo, type Login, type LoginSummary, type Request, type Response, type Status } from "./shared";
+import { pwnedCount } from "../../src/lib/breach-check";
+import { DEFAULT_BASE_URL, matchScore, type BiometricInfo, type Login, type LoginSummary, type Request, type Response, type SavePrompt, type Status } from "./shared";
 
 // ---------- API types (subset of src/lib/vault-data.ts) ----------
 
 type Account = { kdfSalt: string; kdfIterations: number; publicKey: string; encryptedPrivateKey: string; autoLockMinutes: number };
-type FolderRecord = { id: string; encryptedFolderKey: string | null };
+type FolderRecord = {
+  id: string;
+  name: string;
+  encryptedFolderKey: string | null;
+  permission: "OWNER" | "MANAGE" | "MODIFY" | "VIEW";
+  isPersonal: boolean;
+  isOwner: boolean;
+};
 type ItemRecord = {
   id: string;
   folderId: string;
@@ -69,7 +80,9 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers },
   });
   if (!res.ok) {
-    const message = res.status === 401 ? "Not signed in" : res.status === 429 ? "Too many requests. Wait a moment and try again." : `Request failed (${res.status})`;
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    const message =
+      res.status === 401 ? "Not signed in" : res.status === 429 ? "Too many requests. Wait a moment and try again." : (body?.error ?? `Request failed (${res.status})`);
     throw new ApiError(res.status, message);
   }
   return res.json() as Promise<T>;
@@ -153,27 +166,32 @@ async function privateKey(): Promise<CryptoKey> {
 
 // ---------- vault data ----------
 
-async function decryptLogins(payload: VaultPayload): Promise<Login[]> {
-  if (!payload.snapshot) return [];
-  const key = await privateKey();
+/** Resolves item keys (via the folder key or a direct share), caching folder keys. */
+function keyResolver(payload: VaultPayload, key: CryptoKey) {
   const folderKeys = new Map<string, Promise<CryptoKey>>();
   const folderKey = (folder: FolderRecord) => {
     if (!folderKeys.has(folder.id)) folderKeys.set(folder.id, openKeyForUser(folder.encryptedFolderKey!, key));
     return folderKeys.get(folder.id)!;
   };
+  const itemKey = async (item: ItemRecord): Promise<CryptoKey> => {
+    if (item.via === "share") return openKeyForUser(item.shareKey!, key);
+    const folder = payload.snapshot?.folders.find((f) => f.id === item.folderId);
+    if (!folder?.encryptedFolderKey) throw new Error("No access to this folder");
+    return unwrapKey(item.encryptedItemKey, await folderKey(folder));
+  };
+  return { folderKey, itemKey };
+}
+
+async function decryptLogins(payload: VaultPayload): Promise<Login[]> {
+  if (!payload.snapshot) return [];
+  const { itemKey: resolveItemKey } = keyResolver(payload, await privateKey());
 
   const results = await Promise.all(
     payload.snapshot.items
       .filter((i) => i.type === "LOGIN")
       .map(async (item): Promise<Login | null> => {
         try {
-          let itemKey: CryptoKey;
-          if (item.via === "share") itemKey = await openKeyForUser(item.shareKey!, key);
-          else {
-            const folder = payload.snapshot!.folders.find((f) => f.id === item.folderId);
-            if (!folder?.encryptedFolderKey) return null;
-            itemKey = await unwrapKey(item.encryptedItemKey, await folderKey(folder));
-          }
+          const itemKey = await resolveItemKey(item);
           const data = await decryptJSON<{ username: string; password: string }>(itemKey, item.encryptedData);
           return { id: item.id, name: item.name, url: item.url, folderName: item.folderName, username: data.username, password: data.password, favorite: item.favorite };
         } catch {
@@ -199,6 +217,100 @@ function sortForPage(logins: Login[], url?: string) {
   const matches = scored.filter((s) => s.score > 0).sort((a, b) => b.score - a.score || a.l.name.localeCompare(b.l.name)).map((s) => s.l);
   const others = scored.filter((s) => s.score === 0).map((s) => s.l).sort((a, b) => Number(b.favorite) - Number(a.favorite) || a.name.localeCompare(b.name));
   return { matches, others };
+}
+
+// ---------- save-login prompt ----------
+// A submitted login is held per tab in chrome.storage.session (memory only) for
+// a few minutes, so the prompt can appear after the page navigates.
+
+type Capture = { url: string; username: string; password: string; at: number };
+const CAPTURE_TTL = 3 * 60_000;
+const captureKey = (tabId: number) => `capture:${tabId}`;
+const hostOf = (url: string) => new URL(url).hostname.replace(/^www\./, "");
+
+async function getCapture(tabId: number): Promise<Capture | null> {
+  const key = captureKey(tabId);
+  const capture = (await chrome.storage.session.get(key))[key] as Capture | undefined;
+  if (capture && Date.now() - capture.at <= CAPTURE_TTL) return capture;
+  if (capture) await chrome.storage.session.remove(key);
+  return null;
+}
+
+const clearCapture = (tabId: number) => chrome.storage.session.remove(captureKey(tabId));
+
+async function neverSaveHosts(): Promise<string[]> {
+  const { neverSave } = await chrome.storage.local.get("neverSave");
+  return Array.isArray(neverSave) ? neverSave : [];
+}
+
+const writableFolders = (payload: VaultPayload) =>
+  (payload.snapshot?.folders ?? []).filter((f) => f.encryptedFolderKey && f.permission !== "VIEW");
+
+/** An existing login for the same site and username (if any). */
+function existingLogin(logins: Login[], capture: Capture) {
+  const sameSite = logins.filter((l) => matchScore(l.url, capture.url) > 0);
+  return sameSite.find((l) => l.username.toLowerCase() === capture.username.toLowerCase()) ?? (capture.username ? undefined : sameSite[0]);
+}
+
+async function savePrompt(tabId: number): Promise<SavePrompt | null> {
+  const capture = await getCapture(tabId);
+  if (!capture) return null;
+  const payload = await api<VaultPayload>("/api/extension/vault");
+  if (!payload.account || !payload.snapshot) return null;
+
+  const writable = writableFolders(payload);
+  const host = hostOf(capture.url);
+  const base = {
+    host,
+    username: capture.username,
+    name: host,
+    breached: await pwnedCount(capture.password).catch(() => null),
+    folders: writable.map((f) => ({ id: f.id, name: f.name })),
+    defaultFolderId: (writable.find((f) => f.isPersonal && f.isOwner) ?? writable[0])?.id ?? null,
+  };
+  if (!(await getSession())) return { ...base, kind: "save", locked: true };
+
+  const match = existingLogin(await decryptLogins(payload), capture);
+  if (match?.password === capture.password) {
+    await clearCapture(tabId); // already saved, nothing to ask
+    return null;
+  }
+  return match ? { ...base, kind: "update", locked: false, name: match.name } : { ...base, kind: "save", locked: false };
+}
+
+async function savePending(tabId: number, name: string, folderId: string) {
+  const capture = await getCapture(tabId);
+  if (!capture) throw new Error("Nothing to save. The login may have expired.");
+  const payload = await api<VaultPayload>("/api/extension/vault");
+  if (!payload.snapshot) throw new Error("No vault found");
+  const resolver = keyResolver(payload, await privateKey());
+  const match = existingLogin(await decryptLogins(payload), capture);
+
+  if (match) {
+    const item = payload.snapshot.items.find((i) => i.id === match.id)!;
+    const itemKey = await resolver.itemKey(item);
+    const data = await decryptJSON<{ username: string; password: string; notes: string }>(itemKey, item.encryptedData);
+    await api(`/api/extension/items/${item.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ encryptedData: await encryptJSON(itemKey, { ...data, password: capture.password }), passwordChanged: true }),
+    });
+  } else {
+    const folder = writableFolders(payload).find((f) => f.id === folderId);
+    if (!folder) throw new Error("Choose a folder you can edit");
+    const itemKey = await generateDataKey();
+    await api("/api/extension/items", {
+      method: "POST",
+      body: JSON.stringify({
+        folderId,
+        name: name.trim() || hostOf(capture.url),
+        url: new URL(capture.url).origin,
+        encryptedItemKey: await wrapKey(itemKey, await resolver.folderKey(folder)),
+        encryptedData: await encryptJSON(itemKey, { username: capture.username, password: capture.password, notes: "" }),
+      }),
+    });
+  }
+  await clearCapture(tabId);
+  return match ? "updated" : "saved";
 }
 
 // ---------- filling ----------
@@ -373,6 +485,38 @@ async function handle(message: Request, sender: chrome.runtime.MessageSender): P
       if (!(await getSession())) return { locked: true, matches: [] };
       const { matches } = sortForPage(await loadLogins(), sender.tab?.url);
       return { locked: false, matches: matches.map<LoginSummary>(({ id, name, url, username }) => ({ id, name, url, username })) };
+    }
+
+    case "captureLogin": {
+      const url = sender.tab?.url;
+      if (!sender.tab?.id || !url || !/^https?:/.test(url) || !message.password) return null;
+      if ((await neverSaveHosts()).includes(hostOf(url))) return null;
+      const capture: Capture = { url, username: message.username.slice(0, 500), password: message.password.slice(0, 1000), at: Date.now() };
+      await chrome.storage.session.set({ [captureKey(sender.tab.id)]: capture });
+      return null;
+    }
+
+    case "pendingSave": {
+      const tabId = message.tabId ?? sender.tab?.id;
+      return tabId ? savePrompt(tabId) : null;
+    }
+
+    case "savePending": {
+      const tabId = message.tabId ?? sender.tab?.id;
+      if (!tabId) throw new Error("No tab");
+      return savePending(tabId, message.name, message.folderId);
+    }
+
+    case "dismissPending": {
+      const tabId = message.tabId ?? sender.tab?.id;
+      if (!tabId) return null;
+      const capture = await getCapture(tabId);
+      if (message.never && capture) {
+        const hosts = await neverSaveHosts();
+        await chrome.storage.local.set({ neverSave: [...new Set([...hosts, hostOf(capture.url)])] });
+      }
+      await clearCapture(tabId);
+      return null;
     }
 
     case "fillHere": {
