@@ -243,13 +243,17 @@ function parseDotenv(content: string): [string, string][] {
 
 const tokenInput = z.object({
   name: z.string().trim().min(1, "Give the token a name").max(60),
-  projectId: z.string().min(1, "Choose a project"),
+  /** null = all of the user's projects */
+  projectId: z.string().nullable(),
   environmentId: z.string().nullable(),
   access: z.enum(["READ", "READ_WRITE"]),
   expiresInDays: z.union([z.literal(30), z.literal(90), z.literal(365)]).nullable(),
 });
 
-/** Creates a token and returns it once; only its hash is stored. */
+/**
+ * Creates a token. Requests are authenticated by its hash; the value itself is
+ * kept encrypted (like variable values) so the owner can copy it again later.
+ */
 export async function createApiToken(input: z.input<typeof tokenInput>): Promise<{ token: string } | { error: string }> {
   const user = await requireUser();
   const tooMany = await limited("envWrite", user.id);
@@ -258,21 +262,24 @@ export async function createApiToken(input: z.input<typeof tokenInput>): Promise
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const data = parsed.data;
 
-  const project = await prisma.project.findFirst({
-    where: { id: data.projectId, ownerId: user.id },
-    select: { id: true, environments: { select: { id: true } } },
-  });
-  if (!project) return { error: "Project not found." };
-  if (data.environmentId && !project.environments.some((e) => e.id === data.environmentId)) return { error: "Environment not found." };
+  if (data.projectId) {
+    const project = await prisma.project.findFirst({
+      where: { id: data.projectId, ownerId: user.id },
+      select: { environments: { select: { id: true } } },
+    });
+    if (!project) return { error: "Project not found." };
+    if (data.environmentId && !project.environments.some((e) => e.id === data.environmentId)) return { error: "Environment not found." };
+  } else if (data.environmentId) return { error: "Choose a project to limit the token to one environment." };
 
   const { token, tokenHash, prefix } = generateToken();
   await prisma.apiToken.create({
     data: {
       name: data.name,
       tokenHash,
+      encryptedToken: encrypt(token),
       prefix,
       userId: user.id,
-      projectId: project.id,
+      projectId: data.projectId,
       environmentId: data.environmentId,
       access: data.access,
       expiresAt: data.expiresInDays ? new Date(Date.now() + data.expiresInDays * 86_400_000) : null,
@@ -286,4 +293,31 @@ export async function revokeApiToken(tokenId: string) {
   const user = await requireUser();
   await prisma.apiToken.deleteMany({ where: { id: tokenId, userId: user.id } });
   refresh();
+}
+
+/** Returns a token's value so its owner can copy it again. */
+export async function revealApiToken(tokenId: string): Promise<{ token: string } | { error: string }> {
+  const user = await requireUser();
+  const tooMany = await limited("envWrite", user.id);
+  if (tooMany) return tooMany;
+  const row = await prisma.apiToken.findFirst({ where: { id: tokenId, userId: user.id }, select: { encryptedToken: true } });
+  if (!row) return { error: "Token not found." };
+  if (!row.encryptedToken) return { error: "This token was created before copying was supported. Regenerate it to get a copyable value." };
+  return { token: decrypt(row.encryptedToken) };
+}
+
+/**
+ * Issues a new secret for an existing token (same name, scope, access and
+ * expiry); the old value stops working immediately.
+ */
+export async function regenerateApiToken(tokenId: string): Promise<{ token: string } | { error: string }> {
+  const user = await requireUser();
+  const tooMany = await limited("envWrite", user.id);
+  if (tooMany) return tooMany;
+  const existing = await prisma.apiToken.findFirst({ where: { id: tokenId, userId: user.id }, select: { id: true } });
+  if (!existing) return { error: "Token not found." };
+  const { token, tokenHash, prefix } = generateToken();
+  await prisma.apiToken.update({ where: { id: existing.id }, data: { tokenHash, encryptedToken: encrypt(token), prefix, lastUsedAt: null } });
+  refresh();
+  return { token };
 }

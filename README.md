@@ -69,40 +69,49 @@ Your master password and decrypted passwords never leave the extension. It only 
 
 ## CLI & API (Env Manager)
 
-Create a token in **Settings → API tokens**. It's scoped to one project (optionally one environment), read-only or read-write, with an optional expiry, and is shown once.
+Create **one token** in **Settings → API tokens**. By default it covers **all your projects**, and you pick the project and environment in the CLI. You can also limit a token to one project (optionally one environment). Tokens are read-only or read-write, with an optional expiry. Copy a token any time from its **View** button, or **Regenerate** it to rotate the value.
 
 ```bash
 npm install -g ./cli                 # installs the `veylix` command (Node 18+, no dependencies)
 
 veylix login --url https://your-veylix.app --token vlx_…
-veylix envs                          # environments + variable counts
-veylix pull --env production > .env  # or --format json|shell, --output file
-veylix run --env staging -- npm start    # inject variables, no .env file written
-veylix push --env development --file .env [--replace]
-veylix set API_KEY=abc --env development
-veylix unset API_KEY --env development
+veylix projects                      # projects, environments and variable counts
+veylix link                          # pick a project & environment for this folder (writes .veylix.json)
+veylix pull > .env                   # or --format json|shell, --output file
+veylix run -- npm start              # inject variables, no .env file written
+veylix push --file .env [--replace]
+veylix set API_KEY=abc
+veylix unset API_KEY
+veylix whoami                        # account, token access and what this folder uses
+
+# Override the link on any command:
+veylix pull --project api --env production
 ```
 
-In CI, skip `login` and set `VEYLIX_TOKEN` and `VEYLIX_URL` (and optionally `VEYLIX_ENV`) as secrets:
+`veylix link` asks interactively (or takes `--project` / `--env`) and saves the choice in `.veylix.json`. That file holds no secrets and is safe to commit, so everyone on the project pulls the same environment. The project and environment come from, in order: `--project`/`--env` flags, the `VEYLIX_PROJECT`/`VEYLIX_ENV` env vars, then the nearest `.veylix.json`.
+
+In CI, skip `login` and set `VEYLIX_TOKEN`, `VEYLIX_URL`, `VEYLIX_PROJECT` and `VEYLIX_ENV`:
 
 ```yaml
 # GitHub Actions
-- run: node cli/veylix.mjs run --env production -- npm run deploy
+- run: node cli/veylix.mjs run -- npm run deploy
   env:
     VEYLIX_TOKEN: ${{ secrets.VEYLIX_TOKEN }}
     VEYLIX_URL: https://your-veylix.app
+    VEYLIX_PROJECT: api
+    VEYLIX_ENV: production
 ```
 
-**REST API**, with `Authorization: Bearer vlx_…` on every request:
+**REST API**, with `Authorization: Bearer vlx_…` on every request. `project` is a project name or id. It and `env` can be left out when the token only reaches one.
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/api/v1/me` | Token's project, access and environments |
-| `GET` | `/api/v1/secrets?env=production[&format=dotenv]` | Variables as JSON (or `.env` text) |
-| `PUT` | `/api/v1/secrets` | Body `{ "env": "…", "secrets": { "KEY": "value" }, "replace": false }`, read-write tokens |
-| `DELETE` | `/api/v1/secrets?env=…&key=KEY` | Delete one variable, read-write tokens |
+| `GET` | `/api/v1/me` | Account, access, and the projects/environments the token can use |
+| `GET` | `/api/v1/secrets?project=api&env=production[&format=dotenv]` | Variables as JSON (or `.env` text) |
+| `PUT` | `/api/v1/secrets` | Body `{ "project": "…", "env": "…", "secrets": { "KEY": "value" }, "replace": false }`, read-write tokens |
+| `DELETE` | `/api/v1/secrets?project=…&env=…&key=KEY` | Delete one variable, read-write tokens |
 
-Tokens are stored only as SHA-256 hashes, rate-limited (120 requests/min), and stop working when revoked, expired, or if their creator no longer owns the project.
+Requests are matched by the token's SHA-256 hash. Tokens are rate-limited (120 requests/min), only ever reach projects their creator owns, and stop working when revoked or expired.
 
 ## Email
 

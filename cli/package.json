@@ -1,6 +1,6 @@
 {
   "name": "veylix-cli",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Pull Veylix Env Manager variables into apps, shells and CI pipelines",
   "type": "module",
   "bin": {

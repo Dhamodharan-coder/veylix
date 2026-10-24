@@ -6,7 +6,7 @@ import { LIMITS, hit } from "@/lib/rate-limit";
 import type { ApiTokenAccess } from "@/generated/prisma/client";
 
 // Env Manager API tokens (for the `veylix` CLI and CI). Format: "vlx_" + 43
-// base64url chars (256 bits). Only a SHA-256 hash is stored.
+// base64url chars (256 bits). Requests are matched by SHA-256 hash; the value is also kept AES-encrypted so the owner can copy it again.
 
 export const TOKEN_PREFIX = "vlx_";
 
@@ -17,13 +17,16 @@ export function generateToken() {
   return { token, tokenHash: hashToken(token), prefix: token.slice(0, 8) };
 }
 
+type ProjectScope = { id: string; name: string; environments: { id: string; name: string }[] };
+
 export type AuthedToken = {
   id: string;
   userId: string;
   access: ApiTokenAccess;
-  project: { id: string; name: string };
-  /** Environments this token may use (all of the project's, or the one it's scoped to). */
-  environments: { id: string; name: string }[];
+  /** true when the token covers every project the user owns */
+  allProjects: boolean;
+  /** Projects (and their environments) this token may use. */
+  projects: ProjectScope[];
 };
 
 export class ApiError extends Error {
@@ -46,17 +49,21 @@ export async function authenticateToken(request: Request): Promise<AuthedToken> 
 
   const record = await prisma.apiToken.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: {
-      project: { select: { id: true, name: true, ownerId: true, environments: { select: { id: true, name: true }, orderBy: { createdAt: "asc" } } } },
-      environment: { select: { id: true, name: true } },
-    },
+    include: { environment: { select: { id: true, name: true } } },
   });
-  // Revoked tokens are deleted; a token also dies if its creator no longer owns the project.
-  if (!record || record.project.ownerId !== record.userId) throw new ApiError(401, "Invalid API token");
+  if (!record) throw new ApiError(401, "Invalid API token");
   if (record.expiresAt && record.expiresAt < new Date()) throw new ApiError(401, "This API token has expired");
 
   const { allowed, retryAfter } = await hit(`apiToken:${record.id}`, LIMITS.apiToken);
   if (!allowed) throw new ApiError(429, "Too many requests", { "Retry-After": String(retryAfter) });
+
+  // Always scoped to projects the token's creator owns, so a token dies with ownership.
+  const projects = await prisma.project.findMany({
+    where: { ownerId: record.userId, ...(record.projectId ? { id: record.projectId } : {}) },
+    select: { id: true, name: true, environments: { select: { id: true, name: true }, orderBy: { createdAt: "asc" } } },
+    orderBy: { name: "asc" },
+  });
+  if (record.projectId && !projects.length) throw new ApiError(401, "Invalid API token");
 
   // Record usage at most once a minute to avoid a write per request.
   if (!record.lastUsedAt || Date.now() - record.lastUsedAt.getTime() > 60_000) {
@@ -67,20 +74,39 @@ export async function authenticateToken(request: Request): Promise<AuthedToken> 
     id: record.id,
     userId: record.userId,
     access: record.access,
-    project: { id: record.project.id, name: record.project.name },
-    environments: record.environment ? [record.environment] : record.project.environments,
+    allProjects: !record.projectId,
+    projects: record.environment ? projects.map((p) => ({ ...p, environments: [record.environment!] })) : projects,
   };
 }
 
-/** Picks the environment for a request: `?env=` or the token's only environment. */
-export function resolveEnvironment(auth: AuthedToken, name: string | null) {
-  if (!name) {
-    if (auth.environments.length === 1) return auth.environments[0]!;
-    throw new ApiError(400, `Specify an environment with ?env= (one of: ${auth.environments.map((e) => e.name).join(", ")})`);
+const names = (items: { name: string }[]) => items.map((i) => i.name).join(", ");
+
+/**
+ * Picks the project and environment for a request. `project` matches an id or
+ * a name (case-insensitive) and may be omitted when only one project is in
+ * scope; likewise `env` when the project has a single environment.
+ */
+export function resolveTarget(auth: AuthedToken, projectRef: string | null | undefined, envName: string | null | undefined) {
+  let project: ProjectScope | undefined;
+  if (projectRef) {
+    const ref = projectRef.trim().toLowerCase();
+    project = auth.projects.find((p) => p.id === projectRef) ?? auth.projects.find((p) => p.name.toLowerCase() === ref);
+    if (!project) throw new ApiError(404, `Project "${projectRef}" not found or not allowed for this token`);
+  } else if (auth.projects.length === 1) {
+    project = auth.projects[0]!;
+  } else if (!auth.projects.length) {
+    throw new ApiError(404, "You don't have any projects yet");
+  } else {
+    throw new ApiError(400, `Specify a project (one of: ${names(auth.projects)}). Tip: run \`veylix link\``);
   }
-  const env = auth.environments.find((e) => e.name === name.toLowerCase());
-  if (!env) throw new ApiError(404, `Environment "${name}" not found or not allowed for this token`);
-  return env;
+
+  if (!envName) {
+    if (project.environments.length === 1) return { project, environment: project.environments[0]! };
+    throw new ApiError(400, `Specify an environment for ${project.name} (one of: ${names(project.environments)})`);
+  }
+  const environment = project.environments.find((e) => e.name === envName.trim().toLowerCase());
+  if (!environment) throw new ApiError(404, `Environment "${envName}" not found in ${project.name} or not allowed for this token`);
+  return { project, environment };
 }
 
 export function requireWrite(auth: AuthedToken) {
