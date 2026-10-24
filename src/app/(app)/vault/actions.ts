@@ -15,6 +15,7 @@ import {
   requireVaultUser,
 } from "@/lib/vault-access";
 import { CLIENT_ACCESS_ACTIONS, VAULT_ACTIONS, logVaultEvent } from "@/lib/vault-audit";
+import { RateLimitError, enforce } from "@/lib/rate-limit";
 import type { VaultPermission } from "@/generated/prisma/client";
 
 type Result<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -25,6 +26,7 @@ async function run<T extends object>(fn: () => Promise<T>): Promise<Result<T>> {
     return { ok: true, ...(await fn()) };
   } catch (e) {
     if (e instanceof VaultAccessError) return { ok: false, error: e.message };
+    if (e instanceof RateLimitError) return { ok: false, error: e.message };
     if (e instanceof z.ZodError) return { ok: false, error: e.issues[0]?.message ?? "Invalid input" };
     throw e;
   }
@@ -126,6 +128,7 @@ export async function createVaultAccount(input: {
 export async function changeMasterPassword(input: { kdfSalt: string; kdfIterations: number; encryptedPrivateKey: string }) {
   return run(async () => {
     const user = await requireVaultUser();
+    await enforce("vaultKeyChange", user.id);
     const data = z.object({ kdfSalt: b64, kdfIterations: z.number().int().min(100_000).max(10_000_000), encryptedPrivateKey: cipher }).parse(input);
     await prisma.vaultAccount.update({ where: { userId: user.id }, data });
     await logVaultEvent(user.id, "MASTER_PASSWORD_CHANGED");
@@ -137,6 +140,7 @@ export async function changeMasterPassword(input: { kdfSalt: string; kdfIteratio
 export async function setRecoveryKey(recoveryWrappedPrivateKey: string) {
   return run(async () => {
     const user = await requireVaultUser();
+    await enforce("vaultKeyChange", user.id);
     await prisma.vaultAccount.update({
       where: { userId: user.id },
       data: { recoveryWrappedPrivateKey: cipher.parse(recoveryWrappedPrivateKey), recoveryCreatedAt: new Date() },
@@ -155,6 +159,7 @@ export async function setRecoveryKey(recoveryWrappedPrivateKey: string) {
 export async function recoverVault(input: { kdfSalt: string; kdfIterations: number; encryptedPrivateKey: string; recoveryWrappedPrivateKey: string }) {
   return run(async () => {
     const user = await requireVaultUser();
+    await enforce("vaultKeyChange", user.id);
     const data = z
       .object({ kdfSalt: b64, kdfIterations: z.number().int().min(100_000).max(10_000_000), encryptedPrivateKey: cipher, recoveryWrappedPrivateKey: cipher })
       .parse(input);
@@ -173,6 +178,7 @@ export async function recoverVault(input: { kdfSalt: string; kdfIterations: numb
 export async function resetVault(confirmation: { password?: string; email?: string }) {
   return run(async () => {
     const user = await requireVaultUser();
+    await enforce("vaultReset", user.id);
     const hasPassword = await prisma.account.findFirst({ where: { userId: user.id, providerId: "credential" }, select: { id: true } });
     if (hasPassword) {
       try {
@@ -212,6 +218,7 @@ export async function logVaultAccess(action: (typeof CLIENT_ACCESS_ACTIONS)[numb
     const parsed = z.enum(CLIENT_ACCESS_ACTIONS).parse(action);
     if (itemId) {
       const { user, item } = await requireItemPermission(itemId, "VIEW");
+      await enforce("vaultAccessLog", user.id);
       await logVaultEvent(user.id, parsed, { itemId, folderId: item.folderId, targetName: item.name });
     } else {
       await logVaultEvent((await requireVaultUser()).id, parsed);
@@ -225,6 +232,7 @@ export async function logVaultAccess(action: (typeof CLIENT_ACCESS_ACTIONS)[numb
 export async function createFolder(input: { name: string; encryptedFolderKey: string }) {
   return run(async () => {
     const user = await requireVaultUser();
+    await enforce("vaultWrite", user.id);
     const data = z.object({ name, encryptedFolderKey: sealed }).parse(input);
     const folder = await prisma.vaultFolder.create({
       data: {
@@ -242,6 +250,7 @@ export async function createFolder(input: { name: string; encryptedFolderKey: st
 export async function renameFolder(folderId: string, newName: string) {
   return run(async () => {
     const { user, folder } = await requireFolderPermission(folderId, "MANAGE");
+    await enforce("vaultWrite", user.id);
     if (folder.isPersonal) throw new VaultAccessError("Your personal vault can't be renamed.");
     const parsed = name.parse(newName);
     await prisma.vaultFolder.update({ where: { id: folderId }, data: { name: parsed } });
@@ -254,6 +263,7 @@ export async function renameFolder(folderId: string, newName: string) {
 export async function deleteFolder(folderId: string) {
   return run(async () => {
     const { user, folder } = await requireFolderPermission(folderId, "OWNER");
+    await enforce("vaultWrite", user.id);
     if (folder.isPersonal) throw new VaultAccessError("Your personal vault can't be deleted.");
     await logVaultEvent(user.id, "FOLDER_DELETED", { folderId, targetName: folder.name });
     await prisma.vaultFolder.delete({ where: { id: folderId } });
@@ -276,6 +286,7 @@ export async function createItem(input: {
   return run(async () => {
     const data = itemFields.extend({ folderId: z.string(), type: z.enum(["LOGIN", "SECURE_NOTE"]), encryptedItemKey: cipher }).parse(input);
     const { user } = await requireFolderPermission(data.folderId, "MODIFY");
+    await enforce("vaultWrite", user.id);
     const item = await prisma.vaultItem.create({
       data: { ...data, createdById: user.id, updatedById: user.id },
     });
@@ -289,6 +300,7 @@ export async function updateItem(itemId: string, input: { name: string; url: str
   return run(async () => {
     const data = itemFields.extend({ passwordChanged: z.boolean() }).parse(input);
     const { user, item } = await requireItemPermission(itemId, "MODIFY");
+    await enforce("vaultWrite", user.id);
     const { passwordChanged, ...fields } = data;
     await prisma.vaultItem.update({
       where: { id: itemId },
@@ -303,6 +315,7 @@ export async function updateItem(itemId: string, input: { name: string; url: str
 export async function deleteItem(itemId: string) {
   return run(async () => {
     const user = await requireVaultUser();
+    await enforce("vaultWrite", user.id);
     const access = await getItemPermission(itemId, user.id);
     // Deleting needs folder access; a direct share alone isn't enough.
     if (!access || !atLeast(access.viaFolder, "MODIFY")) throw new VaultAccessError("You don't have permission to delete this password.");
@@ -317,6 +330,7 @@ export async function deleteItem(itemId: string) {
 export async function moveItem(itemId: string, targetFolderId: string, encryptedItemKey: string) {
   return run(async () => {
     const user = await requireVaultUser();
+    await enforce("vaultWrite", user.id);
     const access = await getItemPermission(itemId, user.id);
     if (!access || !atLeast(access.viaFolder, "MODIFY")) throw new VaultAccessError("You don't have permission to move this password.");
     const target = await requireFolderPermission(targetFolderId, "MODIFY");
@@ -338,6 +352,7 @@ export async function moveItem(itemId: string, targetFolderId: string, encrypted
 export async function toggleFavorite(itemId: string) {
   return run(async () => {
     const { user } = await requireItemPermission(itemId, "VIEW");
+    await enforce("vaultWrite", user.id);
     const key = { userId_itemId: { userId: user.id, itemId } };
     const existing = await prisma.vaultFavorite.findUnique({ where: key });
     if (existing) await prisma.vaultFavorite.delete({ where: key });
@@ -357,6 +372,7 @@ export type Recipient =
 export async function findRecipient(rawEmail: string) {
   return run(async () => {
     const user = await requireVaultUser();
+    await enforce("findRecipient", user.id);
     const address = email.parse(rawEmail);
     if (address === user.email.toLowerCase()) throw new VaultAccessError("You can't share with yourself.");
     const found = await prisma.user.findFirst({
@@ -389,6 +405,7 @@ async function resolveShareTarget(input: ShareInput) {
 export async function shareFolder(folderId: string, input: ShareInput) {
   return run(async () => {
     const { user, folder } = await requireFolderPermission(folderId, "MANAGE");
+    await enforce("share", user.id);
     if (folder.isPersonal) throw new VaultAccessError("Your personal vault can't be shared. Create a shared folder instead.");
     const { data, recipient, sealedKey } = await resolveShareTarget(input);
 
@@ -411,6 +428,7 @@ export async function shareFolder(folderId: string, input: ShareInput) {
 export async function shareItem(itemId: string, input: ShareInput) {
   return run(async () => {
     const { user, item } = await requireItemPermission(itemId, "MANAGE");
+    await enforce("share", user.id);
     const { data, recipient, sealedKey } = await resolveShareTarget(input);
 
     if (recipient) {
@@ -475,6 +493,7 @@ async function requireManageableEntry(kind: AccessEntry["kind"], id: string) {
     const row = await prisma.vaultFolderMember.findUnique({ where: { id }, include: { folder: true, user: { select: { email: true } } } });
     if (!row) throw new VaultAccessError("Access entry not found.");
     const { user } = await requireFolderPermission(row.folderId, "MANAGE");
+    await enforce("share", user.id);
     if (row.permission === "OWNER") throw new VaultAccessError("The owner's access can't be changed.");
     return { user, folderId: row.folderId, itemId: null, label: row.folder.name, who: row.user.email };
   }
@@ -482,6 +501,7 @@ async function requireManageableEntry(kind: AccessEntry["kind"], id: string) {
     const row = await prisma.vaultItemShare.findUnique({ where: { id }, include: { item: true, user: { select: { email: true } } } });
     if (!row) throw new VaultAccessError("Access entry not found.");
     const { user } = await requireItemPermission(row.itemId, "MANAGE");
+    await enforce("share", user.id);
     return { user, folderId: row.item.folderId, itemId: row.itemId, label: row.item.name, who: row.user.email };
   }
   const row = await prisma.vaultInvite.findUnique({ where: { id }, include: { folder: true, item: true } });
@@ -629,6 +649,7 @@ export async function rotateFolderKey(
 ) {
   return run(async () => {
     const { user, folder } = await requireFolderPermission(folderId, "MANAGE");
+    await enforce("vaultKeyChange", user.id);
     const data = z
       .object({
         members: z.array(z.object({ memberId: z.string(), sealedKey: sealed })),

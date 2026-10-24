@@ -78,6 +78,17 @@ model Verification {
   @@map("verification")
 }
 
+// Rate-limit counters: used by Better Auth (storage: "database") and by
+// src/lib/rate-limit.ts for server actions, so limits hold across instances.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
+
+  @@map("rate_limit")
+}
+
 // ---------- EnvMan tables ----------
 
 model Project {

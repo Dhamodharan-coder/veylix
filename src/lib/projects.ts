@@ -46,5 +46,5 @@ export async function assertEnvironmentOwner(environmentId: string) {
     select: { id: true, projectId: true },
   });
   if (!env) throw new Error("Environment not found");
-  return env;
+  return { ...env, userId: user.id };
 }

@@ -7,8 +7,20 @@ import { prisma } from "@/lib/db";
 import { decrypt, encrypt } from "@/lib/crypto";
 import { requireUser } from "@/lib/session";
 import { assertEnvironmentOwner, DEFAULT_ENVIRONMENTS } from "@/lib/projects";
+import { LIMITS, RateLimitError, enforce } from "@/lib/rate-limit";
 
 export type ActionState = { error?: string; ok?: boolean } | null;
+
+/** Rate-limit check that returns an error state (shown in forms) instead of throwing. */
+async function limited(name: keyof typeof LIMITS, userId: string): Promise<{ error: string } | null> {
+  try {
+    await enforce(name, userId);
+    return null;
+  } catch (e) {
+    if (e instanceof RateLimitError) return { error: e.message };
+    throw e;
+  }
+}
 
 const keySchema = z
   .string()
@@ -25,6 +37,8 @@ const envNameSchema = z
 
 export async function createProject(_: ActionState, formData: FormData): Promise<ActionState> {
   const user = await requireUser();
+  const tooMany = await limited("envWrite", user.id);
+  if (tooMany) return tooMany;
   const name = z.string().trim().min(1).max(60).safeParse(formData.get("name"));
   if (!name.success) return { error: "Project name is required (max 60 chars)." };
 
@@ -50,6 +64,8 @@ type EnvActionResult = { error: string } | { name: string };
 
 export async function addEnvironment(projectId: string, name: string): Promise<EnvActionResult> {
   const user = await requireUser();
+  const tooMany = await limited("envWrite", user.id);
+  if (tooMany) return tooMany;
   const parsed = envNameSchema.safeParse(name);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -68,6 +84,8 @@ export async function addEnvironment(projectId: string, name: string): Promise<E
 
 export async function renameEnvironment(environmentId: string, newName: string): Promise<EnvActionResult> {
   const env = await assertEnvironmentOwner(environmentId);
+  const tooMany = await limited("envWrite", env.userId);
+  if (tooMany) return tooMany;
   const parsed = envNameSchema.safeParse(newName);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
@@ -83,6 +101,8 @@ export async function renameEnvironment(environmentId: string, newName: string):
 
 export async function deleteEnvironment(environmentId: string): Promise<ActionState> {
   const env = await assertEnvironmentOwner(environmentId);
+  const tooMany = await limited("envWrite", env.userId);
+  if (tooMany) return tooMany;
   const count = await prisma.environment.count({ where: { projectId: env.projectId } });
   if (count <= 1) return { error: "A project needs at least one environment." };
 
@@ -95,7 +115,9 @@ export async function deleteEnvironment(environmentId: string): Promise<ActionSt
 
 export async function upsertSecret(_: ActionState, formData: FormData): Promise<ActionState> {
   const environmentId = String(formData.get("environmentId"));
-  await assertEnvironmentOwner(environmentId);
+  const env = await assertEnvironmentOwner(environmentId);
+  const tooMany = await limited("envWrite", env.userId);
+  if (tooMany) return tooMany;
 
   const key = keySchema.safeParse(formData.get("key"));
   if (!key.success) return { error: key.error.issues[0].message };
@@ -113,7 +135,9 @@ export async function upsertSecret(_: ActionState, formData: FormData): Promise<
 /** Paste a whole .env file; existing keys are overwritten. */
 export async function importEnvFile(_: ActionState, formData: FormData): Promise<ActionState> {
   const environmentId = String(formData.get("environmentId"));
-  await assertEnvironmentOwner(environmentId);
+  const env = await assertEnvironmentOwner(environmentId);
+  const tooMany = await limited("envWrite", env.userId);
+  if (tooMany) return tooMany;
 
   const entries = parseDotenv(String(formData.get("content") ?? ""));
   if (entries.length === 0) return { error: "No KEY=value lines found." };
@@ -136,6 +160,8 @@ export async function importEnvFile(_: ActionState, formData: FormData): Promise
 /** Edit an existing variable: change its value and/or rename its key. */
 export async function updateSecret(secretId: string, key: string, value: string): Promise<ActionState> {
   const user = await requireUser();
+  const tooMany = await limited("envWrite", user.id);
+  if (tooMany) return tooMany;
   const secret = await prisma.secret.findFirst({
     where: { id: secretId, environment: { project: { ownerId: user.id } } },
     select: { environmentId: true, key: true },
@@ -163,6 +189,7 @@ export async function updateSecret(secretId: string, key: string, value: string)
 
 export async function deleteSecret(secretId: string) {
   const user = await requireUser();
+  await enforce("envWrite", user.id);
   await prisma.secret.deleteMany({
     where: { id: secretId, environment: { project: { ownerId: user.id } } },
   });
@@ -171,6 +198,7 @@ export async function deleteSecret(secretId: string) {
 
 export async function revealSecret(secretId: string): Promise<string> {
   const user = await requireUser();
+  await enforce("envReveal", user.id);
   const secret = await prisma.secret.findFirst({
     where: { id: secretId, environment: { project: { ownerId: user.id } } },
     select: { value: true },
@@ -181,7 +209,8 @@ export async function revealSecret(secretId: string): Promise<string> {
 
 /** Returns the environment as .env file text. */
 export async function exportEnvFile(environmentId: string): Promise<string> {
-  await assertEnvironmentOwner(environmentId);
+  const env = await assertEnvironmentOwner(environmentId);
+  await enforce("envExport", env.userId);
   const secrets = await prisma.secret.findMany({
     where: { environmentId },
     orderBy: { key: "asc" },

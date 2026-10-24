@@ -33,6 +33,26 @@ export const enabledProviders = {
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, { provider: "postgresql" }),
+  // Brute-force protection for the auth API (per IP). Stored in the database so
+  // limits hold across serverless instances. Disable locally with RATE_LIMIT_ENABLED=false.
+  rateLimit: {
+    enabled: process.env.RATE_LIMIT_ENABLED !== "false",
+    storage: "database",
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/email": { window: 60, max: 5 },
+      "/sign-up/email": { window: 60 * 60, max: 10 },
+      "/request-password-reset": { window: 60 * 60, max: 5 },
+      "/reset-password": { window: 60 * 60, max: 10 },
+      "/send-verification-email": { window: 10 * 60, max: 3 },
+      "/verify-password": { window: 5 * 60, max: 5 },
+      "/change-password": { window: 60 * 60, max: 10 },
+      "/sign-in/social": { window: 60, max: 10 },
+      // Polled by the app and the extension; don't throttle normal use.
+      "/get-session": false,
+    },
+  },
   emailAndPassword: {
     enabled: true,
     // Verification is only enforced once email sending is turned on.

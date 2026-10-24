@@ -68,7 +68,10 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     credentials: "include",
     headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...init.headers },
   });
-  if (!res.ok) throw new ApiError(res.status, res.status === 401 ? "Not signed in" : `Request failed (${res.status})`);
+  if (!res.ok) {
+    const message = res.status === 401 ? "Not signed in" : res.status === 429 ? "Too many requests. Wait a moment and try again." : `Request failed (${res.status})`;
+    throw new ApiError(res.status, message);
+  }
   return res.json() as Promise<T>;
 }
 

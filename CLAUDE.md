@@ -52,6 +52,7 @@ src/generated/prisma/           generated Prisma client (git-ignored)
 - **cacheComponents:** anything reading the session, `headers()`, `searchParams` or request-time env must sit inside `<Suspense>`. Pages that depend on runtime env call `await connection()` first (see `src/app/(auth)/*/page.tsx`) so a single Docker image works in any environment.
 - **Mutations:** Server Actions call `refresh()` from `next/cache` after writes. Return `{ error }` / `{ ok }` objects instead of throwing for expected failures.
 - **Authorization:** every Env action resolves the user (`requireUser`) and scopes queries by owner. Every Vault action goes through `requireFolderPermission` / `requireItemPermission` (`src/lib/vault-access.ts`) and logs via `logVaultEvent` (`src/lib/vault-audit.ts`).
+- **Rate limiting:** Better Auth's limiter (`rateLimit` in `src/lib/auth.ts`, per IP, strict rules for sign-in/sign-up/reset/verification) plus `enforce(name, userId)` from `src/lib/rate-limit.ts` in sensitive server actions and the extension API (limits defined in `LIMITS`). Both store counters in the `rate_limit` table so they hold across serverless instances. `RATE_LIMIT_ENABLED="false"` disables both. Vault actions get the error via `run()`, Env form actions via `limited()`.
 
 ## Vault security model (don't weaken)
 - Master password → PBKDF2-SHA256 (600k) → HKDF → AES-GCM wrapping key → unwraps the user's RSA-OAEP-2048 private key. The **master password is never stored or sent**, not even as a hash. A wrong password fails AES-GCM decryption.
