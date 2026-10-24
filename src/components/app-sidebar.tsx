@@ -2,7 +2,23 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronsUpDown, FolderKanban, LogOut, Monitor, Moon, Settings, Sun } from "lucide-react";
+import {
+  ChevronsUpDown,
+  Folder,
+  FolderKanban,
+  KeyRound,
+  LogOut,
+  Monitor,
+  Moon,
+  ScrollText,
+  Settings,
+  ShieldAlert,
+  Star,
+  Sun,
+  Users,
+  Wand2,
+  type LucideIcon,
+} from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import {
   SidebarGroup,
@@ -30,30 +46,67 @@ import { UserAvatar } from "@/components/page";
 import { themeOptions, useThemeChoice } from "@/components/theme";
 import { useConfirm } from "@/components/confirm-dialog";
 
-const links = [
-  { href: "/dashboard", label: "Projects", icon: FolderKanban, match: ["/dashboard", "/projects"] },
-  { href: "/settings", label: "Settings", icon: Settings, match: ["/settings"] },
+type NavLink = { href: string; label: string; icon: LucideIcon; match: string[]; exact?: boolean };
+type NavGroup = { label: string; links: NavLink[] };
+
+// Each module has its own menu so Env Manager and Vault never mix.
+const ENV_MENU: NavGroup[] = [
+  {
+    label: "Env Manager",
+    links: [
+      { href: "/dashboard", label: "Projects", icon: FolderKanban, match: ["/dashboard", "/projects"] },
+      { href: "/settings", label: "Settings", icon: Settings, match: ["/settings"] },
+    ],
+  },
+];
+
+const VAULT_MENU: NavGroup[] = [
+  {
+    label: "Passwords",
+    links: [
+      { href: "/vault", label: "All Passwords", icon: KeyRound, match: ["/vault"], exact: true },
+      { href: "/vault/favorites", label: "Favorites", icon: Star, match: ["/vault/favorites"] },
+      { href: "/vault/shared", label: "Shared with me", icon: Users, match: ["/vault/shared"] },
+      { href: "/vault/folders", label: "Folders", icon: Folder, match: ["/vault/folders"] },
+    ],
+  },
+  {
+    label: "Tools",
+    links: [
+      { href: "/vault/generator", label: "Password Generator", icon: Wand2, match: ["/vault/generator"] },
+      { href: "/vault/reports", label: "Security Reports", icon: ShieldAlert, match: ["/vault/reports"] },
+      { href: "/vault/audit", label: "Audit", icon: ScrollText, match: ["/vault/audit"] },
+      { href: "/vault/settings", label: "Vault Settings", icon: Settings, match: ["/vault/settings"] },
+    ],
+  },
 ];
 
 export function NavMain() {
   const pathname = usePathname();
   const { setOpenMobile } = useSidebar();
+  const groups = pathname.startsWith("/vault") ? VAULT_MENU : ENV_MENU;
+  const isActive = (l: NavLink) => (l.exact ? pathname === l.href : l.match.some((m) => pathname.startsWith(m)));
+
   return (
-    <SidebarGroup className="group-data-[collapsible=icon]:pt-3">
-      <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-      <SidebarMenu className="gap-1.5 group-data-[collapsible=icon]:gap-2.5">
-        {links.map(({ href, label, icon: Icon, match }) => (
-          <SidebarMenuItem key={href}>
-            <SidebarMenuButton asChild isActive={match.some((m) => pathname.startsWith(m))} tooltip={label}>
-              <Link href={href} onClick={() => setOpenMobile(false)}>
-                <Icon />
-                <span>{label}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ))}
-      </SidebarMenu>
-    </SidebarGroup>
+    <>
+      {groups.map((group) => (
+        <SidebarGroup key={group.label} className="group-data-[collapsible=icon]:pt-3">
+          <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+          <SidebarMenu className="gap-1.5 group-data-[collapsible=icon]:gap-2.5">
+            {group.links.map((l) => (
+              <SidebarMenuItem key={l.href}>
+                <SidebarMenuButton asChild isActive={isActive(l)} tooltip={l.label}>
+                  <Link href={l.href} onClick={() => setOpenMobile(false)}>
+                    <l.icon />
+                    <span>{l.label}</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+      ))}
+    </>
   );
 }
 

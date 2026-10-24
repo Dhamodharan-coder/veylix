@@ -1,10 +1,10 @@
-import { Layers, LockKeyhole, Share2 } from "lucide-react";
+import { KeyRound, LockKeyhole, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/logo";
 
 const features = [
-  { icon: LockKeyhole, title: "Encrypted at rest", text: "Every value is sealed with AES-256-GCM before it reaches the database." },
-  { icon: Layers, title: "Per-environment config", text: "Keep development, staging and production cleanly separated." },
-  { icon: Share2, title: "Import & export .env", text: "Paste an existing file in, download a ready-to-use file out." },
+  { icon: KeyRound, title: "Env Manager", text: "Keep variables for development, staging and production organized and encrypted." },
+  { icon: ShieldCheck, title: "Password Vault", text: "Store and share logins with your team, unlocked by your master password." },
+  { icon: LockKeyhole, title: "Zero-knowledge", text: "Vault data is encrypted in your browser. Not even our servers can read it." },
 ];
 
 export default function AuthLayout({ children }: LayoutProps<"/">) {
@@ -17,8 +17,8 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
           <Logo href="/" inverted />
         </div>
         <div className="relative mt-auto max-w-md">
-          <h2 className="text-3xl leading-tight font-semibold tracking-tight">Your team&apos;s secrets, organized and encrypted.</h2>
-          <p className="mt-3 text-white/70">Stop sharing .env files over chat. Manage configuration for every environment in one secure place.</p>
+          <h2 className="text-3xl leading-tight font-semibold tracking-tight">Your team&apos;s secrets and passwords, in one secure place.</h2>
+          <p className="mt-3 text-white/70">Veylix brings environment variables and a password vault together, so nothing sensitive lives in chat or spreadsheets again.</p>
           <ul className="mt-8 flex flex-col gap-5">
             {features.map(({ icon: Icon, title, text }) => (
               <li key={title} className="flex gap-3">
@@ -33,7 +33,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
             ))}
           </ul>
         </div>
-        <p className="relative mt-12 text-xs text-white/50">© {2026} envman</p>
+        <p className="relative mt-12 text-xs text-white/50">© {2026} Veylix</p>
       </aside>
 
       <main className="flex flex-col items-center justify-center bg-background px-4 py-10 sm:px-6">

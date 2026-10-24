@@ -41,7 +41,7 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }) => {
       await sendMail({
         to: user.email,
-        subject: "Reset your EnvMan password",
+        subject: "Reset your Veylix password",
         heading: "Reset your password",
         body: "Someone requested a password reset for your account. This link expires in 1 hour. If it wasn't you, ignore this email.",
         url,
@@ -56,7 +56,7 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }) => {
       await sendMail({
         to: user.email,
-        subject: "Verify your EnvMan email",
+        subject: "Verify your Veylix email",
         heading: `Welcome, ${user.name}!`,
         body: "Confirm your email address to finish creating your account. This link expires in 1 hour.",
         url,

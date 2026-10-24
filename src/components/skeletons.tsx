@@ -159,3 +159,24 @@ export function AuthCardSkeleton({ fields = 2 }: { fields?: number }) {
     </Loading>
   );
 }
+
+export function VaultListSkeleton() {
+  return (
+    <Loading label="Loading passwords">
+      <div className="mb-8 flex items-end justify-between">
+        <div className="flex flex-col gap-2">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-4 w-72 max-sm:w-48" />
+        </div>
+        <Skeleton className="h-8 w-32" />
+      </div>
+      <Card className="gap-0 py-0">
+        <div className="flex items-center justify-between p-4">
+          <Skeleton className="h-8 w-80 max-sm:w-48" />
+          <Skeleton className="h-8 w-40 max-sm:hidden" />
+        </div>
+        <TableRowsSkeleton rows={6} cols={["w-1/3", "w-1/4", "w-24", "w-40 ml-auto"]} />
+      </Card>
+    </Loading>
+  );
+}

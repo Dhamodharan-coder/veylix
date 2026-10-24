@@ -1,13 +1,26 @@
-# envman
+# Veylix
 
-Encrypted environment-variable manager built with **Next.js 16**, **Prisma 7 + Neon Postgres**, and **Better Auth**.
+Veylix — an env manager and zero-knowledge password vault, built with **Next.js 16**, **Prisma 7 + Neon Postgres**, and **Better Auth**.
 
-- Email + password sign-up with **required email verification**
-- **Forgot / reset password** by email
-- Optional **GitHub / Google OAuth** (buttons appear when keys are set)
+Two separate modules, switched from the top of the sidebar:
+
+**Env Manager** (`/dashboard`, `/projects`)
 - Projects → environments (development / staging / production) → variables
-- Values encrypted with **AES-256-GCM** before they hit the database
+- Values encrypted server-side with **AES-256-GCM** (`ENCRYPTION_KEY`)
 - Import a pasted `.env`, download any environment as `.env`
+
+**Vault** (`/vault`): a Zoho Vault–style password manager
+- Unlocked with a **master password** (separate from the login password, never stored or sent)
+- **Zero-knowledge**: logins and notes are encrypted in the browser (WebCrypto). Master password → PBKDF2 (600k) → HKDF → wraps the user's RSA-OAEP private key; folder and item keys are AES-256-GCM
+- Folders, favorites, tags, password generator and strength meter
+- Share a folder or a single password with **View / Modify / Manage** permissions; people who haven't set up a vault yet get access automatically once they do
+- Key rotation after removing someone, an audit log, and security reports (weak, reused, old passwords and access overview)
+- Auto-lock after inactivity; reloading the page locks the vault
+- ⚠️ A forgotten master password can't be recovered
+
+**Accounts**
+- Email + password sign-up (email verification when `EMAIL_ENABLED="true"`)
+- Optional **GitHub / Google OAuth** (buttons appear when keys are set)
 
 ## Local setup
 

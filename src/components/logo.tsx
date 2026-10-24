@@ -20,7 +20,7 @@ export function Logo({ href = "/dashboard", inverted = false }: { href?: string;
   return (
     <Link href={href} className="flex items-center gap-2.5">
       <LogoMark inverted={inverted} />
-      <span className={cn("font-semibold tracking-tight", inverted && "text-white")}>envman</span>
+      <span className={cn("font-semibold tracking-tight", inverted && "text-white")}>Veylix</span>
     </Link>
   );
 }

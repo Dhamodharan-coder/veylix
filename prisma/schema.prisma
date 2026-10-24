@@ -21,6 +21,13 @@ model User {
   accounts      Account[]
   projects      Project[]
 
+  vaultAccount     VaultAccount?
+  vaultFolders     VaultFolder[]       @relation("VaultFolderOwner")
+  vaultMemberships VaultFolderMember[] @relation("VaultMember")
+  vaultItemShares  VaultItemShare[]    @relation("VaultShareRecipient")
+  vaultFavorites   VaultFavorite[]
+  vaultAuditLogs   VaultAuditLog[]
+
   @@map("user")
 }
 
@@ -110,4 +117,159 @@ model Secret {
 
   @@unique([environmentId, key])
   @@map("secret")
+}
+
+// ---------- Vault (zero-knowledge password manager) ----------
+// Encrypted fields hold browser-made ciphertext ("v1.<iv>.<ct>"); the server
+// never sees plaintext usernames, passwords, notes or keys.
+
+enum VaultPermission {
+  OWNER
+  MANAGE
+  MODIFY
+  VIEW
+}
+
+enum VaultItemType {
+  LOGIN
+  SECURE_NOTE
+}
+
+model VaultAccount {
+  userId              String   @id
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kdfSalt             String
+  kdfIterations       Int
+  publicKey           String
+  // RSA private key encrypted with the key derived from the master password
+  encryptedPrivateKey String
+  autoLockMinutes     Int      @default(15)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("vault_account")
+}
+
+model VaultFolder {
+  id         String              @id @default(cuid())
+  name       String
+  ownerId    String
+  owner      User                @relation("VaultFolderOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  isPersonal Boolean             @default(false)
+  members    VaultFolderMember[]
+  items      VaultItem[]
+  invites    VaultInvite[]
+  auditLogs  VaultAuditLog[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([ownerId])
+  @@map("vault_folder")
+}
+
+model VaultFolderMember {
+  id                 String          @id @default(cuid())
+  folderId           String
+  folder             VaultFolder     @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  userId             String
+  user               User            @relation("VaultMember", fields: [userId], references: [id], onDelete: Cascade)
+  permission         VaultPermission
+  // Folder key encrypted to this member's public key; null = awaiting access
+  encryptedFolderKey String?
+  addedById          String
+  createdAt          DateTime        @default(now())
+
+  @@unique([folderId, userId])
+  @@index([userId])
+  @@map("vault_folder_member")
+}
+
+model VaultInvite {
+  id          String          @id @default(cuid())
+  folderId    String?
+  folder      VaultFolder?    @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  itemId      String?
+  item        VaultItem?      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  email       String
+  permission  VaultPermission
+  invitedById String
+  createdAt   DateTime        @default(now())
+
+  @@index([email])
+  @@map("vault_invite")
+}
+
+model VaultItem {
+  id                String           @id @default(cuid())
+  folderId          String
+  folder            VaultFolder      @relation(fields: [folderId], references: [id], onDelete: Cascade)
+  type              VaultItemType    @default(LOGIN)
+  name              String
+  url               String?
+  tags              String[]
+  // Item key encrypted with the folder key
+  encryptedItemKey  String
+  // JSON { username, password, notes } encrypted with the item key
+  encryptedData     String
+  passwordUpdatedAt DateTime         @default(now())
+  createdById       String
+  updatedById       String
+  shares            VaultItemShare[]
+  favorites         VaultFavorite[]
+  invites           VaultInvite[]
+  auditLogs         VaultAuditLog[]
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([folderId])
+  @@map("vault_item")
+}
+
+model VaultItemShare {
+  id               String          @id @default(cuid())
+  itemId           String
+  item             VaultItem       @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  userId           String
+  user             User            @relation("VaultShareRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  permission       VaultPermission
+  // Item key encrypted to the recipient's public key; null = awaiting access
+  encryptedItemKey String?
+  sharedById       String
+  createdAt        DateTime        @default(now())
+
+  @@unique([itemId, userId])
+  @@index([userId])
+  @@map("vault_item_share")
+}
+
+model VaultFavorite {
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  itemId    String
+  item      VaultItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+
+  @@id([userId, itemId])
+  @@map("vault_favorite")
+}
+
+model VaultAuditLog {
+  id         String       @id @default(cuid())
+  actorId    String
+  actor      User         @relation(fields: [actorId], references: [id], onDelete: Cascade)
+  action     String
+  folderId   String?
+  folder     VaultFolder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  itemId     String?
+  item       VaultItem?   @relation(fields: [itemId], references: [id], onDelete: SetNull)
+  targetName String?
+  metadata   Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime     @default(now())
+
+  @@index([actorId, createdAt])
+  @@index([folderId, createdAt])
+  @@index([itemId, createdAt])
+  @@map("vault_audit_log")
 }

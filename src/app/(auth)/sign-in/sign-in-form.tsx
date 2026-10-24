@@ -50,7 +50,7 @@ export function SignInForm({
   }
 
   return (
-    <AuthPanel title="Welcome back" subtitle="Sign in to your envman account.">
+    <AuthPanel title="Welcome back" subtitle="Sign in to your Veylix account.">
       {justReset && <FormMessage tone="success">Password updated. Sign in with your new password.</FormMessage>}
       <SocialButtons providers={providers} />
       <form onSubmit={onSubmit} className="grid gap-4">

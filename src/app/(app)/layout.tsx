@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Suspense } from "react";
 import { requireUser } from "@/lib/session";
 import {
@@ -7,63 +6,61 @@ import {
   SidebarFooter,
   SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { LogoMark } from "@/components/logo";
+import { Skeleton } from "@/components/ui/skeleton";
 import { NavMain, NavUser } from "@/components/app-sidebar";
+import { AppSwitcher } from "@/components/app-switcher";
+import { ModuleLabel, VaultLockButton } from "@/components/header-context";
 import { ModeToggle } from "@/components/mode-toggle";
+import { VaultProvider } from "@/components/vault/vault-provider";
 import { NavMainSkeleton, NavUserSkeleton } from "@/components/skeletons";
 
 export default function AppLayout({ children }: LayoutProps<"/">) {
   return (
-    <SidebarProvider>
-      <Sidebar variant="inset" collapsible="icon">
-        <SidebarHeader>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
-                <Link href="/dashboard">
-                  <LogoMark />
-                  <div className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-semibold">envman</span>
-                    <span className="truncate text-xs text-muted-foreground">Secrets manager</span>
-                  </div>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarHeader>
-        <SidebarContent>
-          <Suspense fallback={<NavMainSkeleton />}>
-            <NavMain />
-          </Suspense>
-        </SidebarContent>
-        <SidebarFooter>
-          <Suspense fallback={<NavUserSkeleton />}>
-            <CurrentUser />
-          </Suspense>
-        </SidebarFooter>
-        <SidebarRail />
-      </Sidebar>
+    // VaultProvider sits above both modules so switching apps doesn't lock the vault.
+    <VaultProvider>
+      <SidebarProvider>
+        <Sidebar variant="inset" collapsible="icon">
+          <SidebarHeader>
+            <Suspense fallback={<Skeleton className="m-2 h-10" />}>
+              <AppSwitcher />
+            </Suspense>
+          </SidebarHeader>
+          <SidebarContent>
+            <Suspense fallback={<NavMainSkeleton />}>
+              <NavMain />
+            </Suspense>
+          </SidebarContent>
+          <SidebarFooter>
+            <Suspense fallback={<NavUserSkeleton />}>
+              <CurrentUser />
+            </Suspense>
+          </SidebarFooter>
+          <SidebarRail />
+        </Sidebar>
 
-      <SidebarInset>
-        <header className="flex h-14 shrink-0 items-center gap-2 px-4">
-          <SidebarTrigger className="-ml-1" />
-          <span className="ml-1 text-sm text-muted-foreground">Workspace</span>
-          <div className="ml-auto">
-            <ModeToggle />
+        <SidebarInset>
+          <header className="flex h-14 shrink-0 items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Suspense>
+              <ModuleLabel />
+            </Suspense>
+            <div className="ml-auto flex items-center gap-2">
+              <Suspense>
+                <VaultLockButton />
+              </Suspense>
+              <ModeToggle />
+            </div>
+          </header>
+          <div className="flex-1 px-4 pb-10 md:px-8">
+            <div className="mx-auto w-full max-w-6xl pt-2">{children}</div>
           </div>
-        </header>
-        <div className="flex-1 px-4 pb-10 md:px-8">
-          <div className="mx-auto w-full max-w-6xl pt-2">{children}</div>
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </VaultProvider>
   );
 }
 

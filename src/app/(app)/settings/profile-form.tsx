@@ -28,7 +28,7 @@ export function ProfileForm({ name, email }: { name: string; email: string }) {
       <form onSubmit={save} className="contents">
         <CardHeader>
           <CardTitle>Profile</CardTitle>
-          <CardDescription>Your personal details shown across envman.</CardDescription>
+          <CardDescription>Your personal details shown across Veylix.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-6">
           <div className="flex items-center gap-4">

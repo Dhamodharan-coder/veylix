@@ -11,8 +11,8 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
 export const metadata: Metadata = {
-  title: "envman",
-  description: "Encrypted environment variable manager",
+  title: "Veylix",
+  description: "Veylix: env manager & password vault",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

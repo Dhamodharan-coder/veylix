@@ -39,7 +39,7 @@ export function AppearanceSettings() {
     <Card className="shadow-xs">
       <CardHeader>
         <CardTitle>Appearance</CardTitle>
-        <CardDescription>Choose how envman looks to you. System follows your device setting.</CardDescription>
+        <CardDescription>Choose how Veylix looks to you. System follows your device setting.</CardDescription>
       </CardHeader>
       <CardContent>
         <div role="radiogroup" aria-label="Theme" className="grid gap-4 sm:grid-cols-3">

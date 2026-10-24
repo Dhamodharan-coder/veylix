@@ -36,7 +36,7 @@ export async function sendMail({ to, subject, heading, body, url, cta }: Mail) {
     </div>`;
 
   const { error } = await resend.emails.send({
-    from: process.env.EMAIL_FROM ?? "EnvMan <onboarding@resend.dev>",
+    from: process.env.EMAIL_FROM ?? "Veylix <onboarding@resend.dev>",
     to,
     subject,
     html,
