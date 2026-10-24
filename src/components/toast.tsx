@@ -1,15 +1,8 @@
-"use client";
-
-import { Toaster as SonnerToaster, toast } from "sonner";
-
-/** Mounted once in the root layout. */
-export function Toaster() {
-  return <SonnerToaster position="bottom-right" theme="system" richColors closeButton duration={2500} />;
-}
+import { toast } from "sonner";
 
 type NotifyOptions = { description?: string; duration?: number };
 
-/** App-wide alerts. Use these instead of calling sonner directly. */
+/** App-wide alerts (rendered by the shadcn <Toaster /> in the root layout). */
 export const notify = {
   success: (message: string, opts?: NotifyOptions) => toast.success(message, opts),
   error: (message: string, opts?: NotifyOptions) => toast.error(message, opts),

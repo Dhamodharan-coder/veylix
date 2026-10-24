@@ -5,7 +5,10 @@ import { getSessionCookie } from "better-auth/cookies";
 // requireUser() and in every Server Action.
 export function proxy(request: NextRequest) {
   if (!getSessionCookie(request)) {
-    return NextResponse.redirect(new URL("/sign-in", request.url));
+    // An invalid/expired email-verification link lands here as /dashboard?error=…
+    const error = request.nextUrl.searchParams.get("error");
+    const target = error ? `/verify-email?error=${encodeURIComponent(error)}` : "/sign-in";
+    return NextResponse.redirect(new URL(target, request.url));
   }
   return NextResponse.next();
 }

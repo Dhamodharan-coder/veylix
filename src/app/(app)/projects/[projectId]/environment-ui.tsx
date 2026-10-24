@@ -3,20 +3,20 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Check, LoaderCircle, Pencil, Plus, Trash2, X } from "lucide-react";
+import { Check, Layers, LoaderCircle, Pencil, Plus, Trash2, X } from "lucide-react";
 import { addEnvironment, deleteEnvironment, renameEnvironment } from "@/app/actions";
-import { IconButton } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { IconButton } from "@/components/icon-button";
 import { notify } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
+import { cn } from "@/lib/utils";
 
 type Env = { id: string; name: string; secretCount: number };
 
-const inputClass =
-  "w-40 rounded-md border border-black/15 bg-transparent px-2 py-1 font-mono text-sm outline-none focus:border-black/50 dark:border-white/20 dark:focus:border-white/60";
-
 const envHref = (projectId: string, name: string) => `/projects/${projectId}?env=${encodeURIComponent(name)}`;
 
-/** Environment tabs with an inline "+" to add a new environment. */
+/** Segmented environment switcher (shadcn Tabs look) with inline "Add environment". */
 export function EnvironmentTabs({ projectId, environments, currentId }: { projectId: string; environments: Env[]; currentId: string }) {
   const router = useRouter();
   const [adding, setAdding] = useState(false);
@@ -36,22 +36,37 @@ export function EnvironmentTabs({ projectId, environments, currentId }: { projec
   };
 
   return (
-    <nav className="mb-4 flex items-end gap-1 overflow-x-auto border-b border-black/10 dark:border-white/15">
-      {environments.map((e) => (
-        <Link
-          key={e.id}
-          href={envHref(projectId, e.name)}
-          className={`-mb-px border-b-2 px-3 py-2 text-sm whitespace-nowrap ${
-            e.id === currentId ? "border-foreground font-medium" : "border-transparent opacity-60 hover:opacity-100"
-          }`}
-        >
-          {e.name} <span className="opacity-50">({e.secretCount})</span>
-        </Link>
-      ))}
+    <div className="mb-6 flex flex-wrap items-center gap-2">
+      <nav aria-label="Environments" className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-[3px]">
+        {environments.map((e) => {
+          const active = e.id === currentId;
+          return (
+            <Link
+              key={e.id}
+              href={envHref(projectId, e.name)}
+              aria-current={active ? "page" : undefined}
+              className={cn(
+                "flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium whitespace-nowrap transition",
+                active ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {e.name}
+              <span
+                className={cn(
+                  "rounded-full px-1.5 text-[11px] leading-4 tabular-nums",
+                  active ? "bg-primary/10 text-primary" : "bg-background/60 text-muted-foreground",
+                )}
+              >
+                {e.secretCount}
+              </span>
+            </Link>
+          );
+        })}
+      </nav>
 
       {adding ? (
-        <form onSubmit={submit} className="mb-1 flex items-center gap-1 pl-2">
-          <input
+        <form onSubmit={submit} className="flex items-center gap-1">
+          <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. qa"
@@ -59,26 +74,26 @@ export function EnvironmentTabs({ projectId, environments, currentId }: { projec
             required
             maxLength={30}
             aria-label="New environment name"
-            className={inputClass}
+            className="w-40 font-mono"
             onKeyDown={(e) => e.key === "Escape" && setAdding(false)}
           />
           <IconButton type="submit" label="Add environment" disabled={pending}>
-            {pending ? <LoaderCircle size={16} className="animate-spin" /> : <Check size={16} />}
+            {pending ? <LoaderCircle className="animate-spin" /> : <Check />}
           </IconButton>
           <IconButton label="Cancel" disabled={pending} onClick={() => setAdding(false)}>
-            <X size={16} />
+            <X />
           </IconButton>
         </form>
       ) : (
-        <IconButton label="New environment" className="mb-1 ml-1" onClick={() => setAdding(true)}>
-          <Plus size={16} />
-        </IconButton>
+        <Button variant="ghost" onClick={() => setAdding(true)} className="text-muted-foreground">
+          <Plus /> Add environment
+        </Button>
       )}
-    </nav>
+    </div>
   );
 }
 
-/** Name of the selected environment with rename / delete controls. */
+/** Title of the selected environment with rename / delete controls. */
 export function EnvironmentActions({ projectId, env, canDelete }: { projectId: string; env: Env; canDelete: boolean }) {
   const router = useRouter();
   const confirm = useConfirm();
@@ -117,40 +132,51 @@ export function EnvironmentActions({ projectId, env, canDelete }: { projectId: s
   if (renaming !== null) {
     return (
       <form onSubmit={save} className="flex items-center gap-1">
-        <input
+        <Input
           value={renaming}
           onChange={(e) => setRenaming(e.target.value)}
           autoFocus
           required
           maxLength={30}
           aria-label="Environment name"
-          className={inputClass}
+          className="w-44 font-mono"
           onKeyDown={(e) => e.key === "Escape" && setRenaming(null)}
         />
         <IconButton type="submit" label="Save" disabled={pending}>
-          {pending ? <LoaderCircle size={16} className="animate-spin" /> : <Check size={16} />}
+          {pending ? <LoaderCircle className="animate-spin" /> : <Check />}
         </IconButton>
         <IconButton label="Cancel" disabled={pending} onClick={() => setRenaming(null)}>
-          <X size={16} />
+          <X />
         </IconButton>
       </form>
     );
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <span className="mr-1 font-mono text-sm font-medium">{env.name}</span>
-      <IconButton label="Rename environment" disabled={pending} onClick={() => setRenaming(env.name)}>
-        <Pencil size={16} />
-      </IconButton>
-      <IconButton
-        label={canDelete ? "Delete environment" : "A project needs at least one environment"}
-        variant="danger"
-        disabled={pending || !canDelete}
-        onClick={remove}
-      >
-        {pending ? <LoaderCircle size={16} className="animate-spin" /> : <Trash2 size={16} />}
-      </IconButton>
+    <div className="flex items-center gap-3">
+      <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+        <Layers className="size-5" />
+      </div>
+      <div>
+        <div className="flex items-center gap-0.5">
+          <h2 className="mr-1 font-semibold">{env.name}</h2>
+          <IconButton label="Rename environment" size="icon-sm" disabled={pending} onClick={() => setRenaming(env.name)}>
+            <Pencil />
+          </IconButton>
+          <IconButton
+            label={canDelete ? "Delete environment" : "A project needs at least one environment"}
+            variant="destructive-ghost"
+            size="icon-sm"
+            disabled={pending || !canDelete}
+            onClick={remove}
+          >
+            {pending ? <LoaderCircle className="animate-spin" /> : <Trash2 />}
+          </IconButton>
+        </div>
+        <p className="text-sm text-muted-foreground">
+          {env.secretCount} variable{env.secretCount === 1 ? "" : "s"} · encrypted with AES-256
+        </p>
+      </div>
     </div>
   );
 }

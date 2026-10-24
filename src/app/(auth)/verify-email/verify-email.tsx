@@ -1,35 +1,36 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { Alert, Button, Card, Input } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/page";
+import { AuthCardSkeleton } from "@/components/skeletons";
+import { AuthPanel, FormMessage, authLink } from "../auth-panel";
 
-// Three states:
-//  ?verified=1      → arrived from a valid email link (now signed in)
+// Verified links go straight to /dashboard. This page handles:
 //  ?error=...       → the email link was invalid/expired
 //  ?email=...       → just signed up, waiting for the user to click the link
+//  ?verified=1      → legacy links; forwarded to the dashboard
 export function VerifyEmail() {
+  const router = useRouter();
   const params = useSearchParams();
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
+  const verified = Boolean(params.get("verified") && !params.get("error"));
 
-  if (params.get("verified") && !params.get("error")) {
-    return (
-      <Card title="Email verified 🎉" subtitle="Your account is ready.">
-        <Link href="/dashboard" className="rounded-md bg-foreground px-4 py-2 text-center text-sm font-medium text-background">
-          Go to dashboard
-        </Link>
-      </Card>
-    );
-  }
+  useEffect(() => {
+    if (verified) router.replace("/dashboard");
+  }, [verified, router]);
+
+  if (verified) return <AuthCardSkeleton fields={1} />;
 
   async function resend(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setStatus("sending");
     const { error } = await authClient.sendVerificationEmail({
       email: String(new FormData(e.currentTarget).get("email")),
-      callbackURL: "/verify-email?verified=1",
+      callbackURL: "/dashboard",
     });
     setStatus(error ? "error" : "sent");
   }
@@ -37,21 +38,21 @@ export function VerifyEmail() {
   const linkFailed = Boolean(params.get("error"));
 
   return (
-    <Card
+    <AuthPanel
       title={linkFailed ? "Link expired" : "Check your inbox"}
       subtitle={linkFailed
         ? "That verification link is invalid or has expired. Request a new one below."
         : "We sent a verification link to your email. Click it to activate your account."}
     >
-      {status === "sent" && <Alert tone="success">New verification email sent.</Alert>}
-      {status === "error" && <Alert>Couldn&apos;t send the email. Try again in a minute.</Alert>}
-      <form onSubmit={resend} className="flex flex-col gap-4">
-        <Input label="Email" name="email" type="email" required defaultValue={params.get("email") ?? ""} />
-        <Button variant="outline" disabled={status === "sending"}>
+      {status === "sent" && <FormMessage tone="success">New verification email sent.</FormMessage>}
+      {status === "error" && <FormMessage>Couldn&apos;t send the email. Try again in a minute.</FormMessage>}
+      <form onSubmit={resend} className="grid gap-4">
+        <Field label="Email" name="email" type="email" required defaultValue={params.get("email") ?? ""} />
+        <Button size="lg" variant="outline" disabled={status === "sending"}>
           {status === "sending" ? "Sending…" : "Resend verification email"}
         </Button>
       </form>
-      <Link href="/sign-in" className="text-center text-sm underline">Back to sign in</Link>
-    </Card>
+      <Link href="/sign-in" className={`text-center text-sm ${authLink}`}>Back to sign in</Link>
+    </AuthPanel>
   );
 }

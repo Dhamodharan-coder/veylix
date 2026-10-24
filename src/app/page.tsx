@@ -1,17 +1,58 @@
 import Link from "next/link";
+import { ArrowRight, Layers, LockKeyhole, Share2, ShieldCheck } from "lucide-react";
+import { Logo } from "@/components/logo";
+import { buttonVariants } from "@/components/ui/button";
+
+const features = [
+  { icon: LockKeyhole, title: "Encrypted at rest", text: "Values are sealed with AES-256-GCM before they're stored. Only you can reveal them." },
+  { icon: Layers, title: "Every environment", text: "Development, staging, production, or your own. Each one keeps its own variables." },
+  { icon: Share2, title: "Works with .env", text: "Import an existing file in seconds and export a ready-to-use file anytime." },
+];
 
 export default function Home() {
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-6 p-6 text-center">
-      <h1 className="font-mono text-4xl font-bold">envman</h1>
-      <p className="max-w-md text-black/60 dark:text-white/60">
-        Store your project&apos;s environment variables encrypted, per environment, and export them as a
-        <code className="mx-1 rounded bg-black/5 px-1 dark:bg-white/10">.env</code>file anytime.
-      </p>
-      <div className="flex gap-3">
-        <Link href="/sign-up" className="rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background">Get started</Link>
-        <Link href="/sign-in" className="rounded-md border border-black/15 px-4 py-2 text-sm font-medium dark:border-white/20">Sign in</Link>
-      </div>
-    </main>
+    <div className="flex flex-1 flex-col">
+      <header className="bg-background/80 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-8">
+          <Logo href="/" />
+          <div className="flex items-center gap-2">
+            <Link href="/sign-in" className={buttonVariants({ variant: "ghost" })}>Sign in</Link>
+            <Link href="/sign-up" className={buttonVariants()}>Get started</Link>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1">
+        <section className="mx-auto max-w-3xl px-4 pt-20 pb-16 text-center sm:px-8 sm:pt-28">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-card px-3 ring-1 ring-foreground/10 py-1 text-xs font-medium text-muted-foreground shadow-xs">
+            <ShieldCheck size={14} className="text-success" /> End-to-end encrypted storage
+          </span>
+          <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">
+            Environment variables, <span className="text-primary">managed properly.</span>
+          </h1>
+          <p className="mx-auto mt-5 max-w-xl text-base text-muted-foreground">
+            Store your project&apos;s configuration encrypted, organize it per environment, and stop pasting secrets into chat.
+          </p>
+          <div className="mt-8 flex justify-center gap-3">
+            <Link href="/sign-up" className={buttonVariants({ size: "lg", className: "h-10 px-5" })}>
+              Create free account <ArrowRight size={16} />
+            </Link>
+            <Link href="/sign-in" className={buttonVariants({ variant: "outline", size: "lg", className: "h-10 px-5" })}>Sign in</Link>
+          </div>
+        </section>
+
+        <section className="mx-auto grid max-w-6xl gap-4 px-4 pb-24 sm:grid-cols-3 sm:px-8">
+          {features.map(({ icon: Icon, title, text }) => (
+            <div key={title} className="rounded-xl bg-card p-6 shadow-xs ring-1 ring-foreground/10">
+              <div className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon size={18} />
+              </div>
+              <h3 className="mt-4 font-semibold">{title}</h3>
+              <p className="mt-1.5 text-muted-foreground">{text}</p>
+            </div>
+          ))}
+        </section>
+      </main>
+    </div>
   );
 }

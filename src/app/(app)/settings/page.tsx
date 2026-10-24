@@ -1,30 +1,21 @@
-import { Suspense, type ReactNode } from "react";
+import { Suspense } from "react";
 import { requireUser } from "@/lib/session";
+import { PageHeader } from "@/components/page";
+import { ProfileSkeleton } from "@/components/skeletons";
 import { ProfileForm } from "./profile-form";
-import { ProfileSkeleton } from "@/components/skeleton";
+import { AppearanceSettings } from "./appearance";
 
 export default function SettingsPage() {
   return (
     <>
-      <h1 className="mb-8 text-2xl font-semibold">Settings</h1>
-      <div className="flex flex-col gap-10">
-        <Section title="Profile" description="How your name appears in envman.">
-          <Suspense fallback={<ProfileSkeleton />}>
-            <Profile />
-          </Suspense>
-        </Section>
+      <PageHeader title="Settings" description="Manage your account and preferences." />
+      <div className="flex max-w-3xl flex-col gap-6">
+        <Suspense fallback={<ProfileSkeleton />}>
+          <Profile />
+        </Suspense>
+        <AppearanceSettings />
       </div>
     </>
-  );
-}
-
-function Section({ title, description, children }: { title: string; description: string; children: ReactNode }) {
-  return (
-    <section>
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <p className="mb-4 text-sm opacity-60">{description}</p>
-      {children}
-    </section>
   );
 }
 

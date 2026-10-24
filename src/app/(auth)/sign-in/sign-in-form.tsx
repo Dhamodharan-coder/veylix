@@ -4,10 +4,18 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { Alert, Button, Card, Input } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/page";
 import { SocialButtons } from "@/components/social-buttons";
+import { AuthPanel, FormMessage, authLink } from "../auth-panel";
 
-export function SignInForm({ providers }: { providers: { github: boolean; google: boolean } }) {
+export function SignInForm({
+  providers,
+  emailEnabled,
+}: {
+  providers: { github: boolean; google: boolean };
+  emailEnabled: boolean;
+}) {
   const router = useRouter();
   const justReset = useSearchParams().get("reset") === "1";
   const [error, setError] = useState<React.ReactNode>(null);
@@ -23,7 +31,7 @@ export function SignInForm({ providers }: { providers: { github: boolean; google
     const { error } = await authClient.signIn.email({
       email,
       password: String(form.get("password")),
-      callbackURL: "/verify-email?verified=1",
+      callbackURL: "/dashboard",
     });
     setPending(false);
 
@@ -42,19 +50,24 @@ export function SignInForm({ providers }: { providers: { github: boolean; google
   }
 
   return (
-    <Card title="Sign in" subtitle="Welcome back to envman.">
-      {justReset && <Alert tone="success">Password updated. Sign in with your new password.</Alert>}
+    <AuthPanel title="Welcome back" subtitle="Sign in to your envman account.">
+      {justReset && <FormMessage tone="success">Password updated. Sign in with your new password.</FormMessage>}
       <SocialButtons providers={providers} />
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        {error && <Alert>{error}</Alert>}
-        <Input label="Email" name="email" type="email" required autoComplete="email" />
-        <Input label="Password" name="password" type="password" required autoComplete="current-password" />
-        <Link href="/forgot-password" className="-mt-2 self-end text-sm underline">Forgot password?</Link>
-        <Button disabled={pending}>{pending ? "Signing in…" : "Sign in"}</Button>
+      <form onSubmit={onSubmit} className="grid gap-4">
+        {error && <FormMessage>{error}</FormMessage>}
+        <Field label="Email" name="email" type="email" required autoComplete="email" placeholder="you@company.com" />
+        <div className="grid gap-2">
+          <Field label="Password" name="password" type="password" required autoComplete="current-password" />
+          {/* Password reset needs email delivery. */}
+          {emailEnabled && (
+            <Link href="/forgot-password" className={`justify-self-end text-sm ${authLink}`}>Forgot password?</Link>
+          )}
+        </div>
+        <Button size="lg" disabled={pending}>{pending ? "Signing in…" : "Sign in"}</Button>
       </form>
-      <p className="text-center text-sm">
-        No account? <Link href="/sign-up" className="underline">Sign up</Link>
+      <p className="text-center text-sm text-muted-foreground">
+        Don&apos;t have an account? <Link href="/sign-up" className={authLink}>Sign up</Link>
       </p>
-    </Card>
+    </AuthPanel>
   );
 }

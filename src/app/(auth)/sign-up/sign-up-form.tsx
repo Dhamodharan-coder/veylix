@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { Alert, Button, Card, Input } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/page";
 import { SocialButtons } from "@/components/social-buttons";
+import { AuthPanel, FormMessage, authLink } from "../auth-panel";
 
 export function SignUpForm({ providers }: { providers: { github: boolean; google: boolean } }) {
   const router = useRouter();
@@ -27,7 +29,7 @@ export function SignUpForm({ providers }: { providers: { github: boolean; google
       name,
       email,
       password,
-      callbackURL: "/verify-email?verified=1",
+      callbackURL: "/dashboard",
     });
     setPending(false);
 
@@ -42,19 +44,22 @@ export function SignUpForm({ providers }: { providers: { github: boolean; google
   }
 
   return (
-    <Card title="Create your account" subtitle="Manage your environment variables in one place.">
+    <AuthPanel title="Create your account" subtitle="Start managing your environment variables securely.">
       <SocialButtons providers={providers} />
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        {error && <Alert>{error}</Alert>}
-        <Input label="Name" name="name" required autoComplete="name" />
-        <Input label="Email" name="email" type="email" required autoComplete="email" />
-        <Input label="Password" name="password" type="password" required minLength={8} autoComplete="new-password" />
-        <Input label="Confirm password" name="confirm" type="password" required minLength={8} autoComplete="new-password" />
-        <Button disabled={pending}>{pending ? "Creating account…" : "Sign up"}</Button>
+      <form onSubmit={onSubmit} className="grid gap-4">
+        {error && <FormMessage>{error}</FormMessage>}
+        <Field label="Full name" name="name" required autoComplete="name" placeholder="Jane Cooper" />
+        <Field label="Email" name="email" type="email" required autoComplete="email" placeholder="you@company.com" />
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Password" name="password" type="password" required minLength={8} autoComplete="new-password" />
+          <Field label="Confirm password" name="confirm" type="password" required minLength={8} autoComplete="new-password" />
+        </div>
+        <p className="-mt-2 text-xs text-muted-foreground">At least 8 characters.</p>
+        <Button size="lg" disabled={pending}>{pending ? "Creating account…" : "Create account"}</Button>
       </form>
-      <p className="text-center text-sm">
-        Already have an account? <Link href="/sign-in" className="underline">Sign in</Link>
+      <p className="text-center text-sm text-muted-foreground">
+        Already have an account? <Link href="/sign-in" className={authLink}>Sign in</Link>
       </p>
-    </Card>
+    </AuthPanel>
   );
 }

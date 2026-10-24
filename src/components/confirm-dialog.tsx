@@ -1,8 +1,21 @@
 "use client";
 
-import { createContext, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, HelpCircle } from "lucide-react";
-import { Button } from "@/components/ui";
+import { createContext, use, useCallback, useRef, useState, type ReactNode } from "react";
+import { CircleHelp, TriangleAlert } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogMedia,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { cn } from "@/lib/utils";
 
 export type ConfirmOptions = {
   title: string;
@@ -20,7 +33,7 @@ type ConfirmFn = (options: ConfirmOptions) => Promise<boolean>;
 const ConfirmContext = createContext<ConfirmFn | null>(null);
 
 /**
- * Promise-based confirmation modal:
+ * Promise-based confirmation dialog (shadcn AlertDialog):
  *   const confirm = useConfirm();
  *   if (await confirm({ title: "Delete?", tone: "danger" })) { ... }
  */
@@ -31,9 +44,9 @@ export function useConfirm(): ConfirmFn {
 }
 
 export function ConfirmProvider({ children }: { children: ReactNode }) {
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const resolveRef = useRef<((result: boolean) => void) | null>(null);
   const [options, setOptions] = useState<ConfirmOptions | null>(null);
+  const [open, setOpen] = useState(false);
   const [typed, setTyped] = useState("");
 
   const confirm = useCallback<ConfirmFn>(
@@ -43,20 +56,16 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
         resolveRef.current = resolve;
         setTyped("");
         setOptions(opts);
+        setOpen(true);
       }),
     [],
   );
 
-  const settle = useCallback((result: boolean) => {
+  const settle = (result: boolean) => {
     resolveRef.current?.(result);
     resolveRef.current = null;
-    if (dialogRef.current?.open) dialogRef.current.close();
-    setOptions(null);
-  }, []);
-
-  useEffect(() => {
-    if (options && !dialogRef.current?.open) dialogRef.current?.showModal();
-  }, [options]);
+    setOpen(false); // options stay set so the closing animation keeps its content
+  };
 
   const danger = options?.tone === "danger";
   const canConfirm = !options?.requireText || typed === options.requireText;
@@ -64,62 +73,46 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
   return (
     <ConfirmContext value={confirm}>
       {children}
-      <dialog
-        ref={dialogRef}
-        onClose={() => settle(false)} // Esc key
-        onClick={(e) => e.target === dialogRef.current && settle(false)} // backdrop click
-        aria-labelledby="confirm-title"
-        className="m-auto w-[calc(100%-2rem)] max-w-md rounded-xl border border-black/10 bg-background p-0 text-foreground shadow-xl backdrop:bg-black/60 backdrop:backdrop-blur-sm dark:border-white/15"
-      >
-        {options && (
-          <form
-            method="dialog"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (canConfirm) settle(true);
-            }}
-            className="flex flex-col gap-4 p-6"
-          >
-            <div className="flex gap-3">
-              <div
-                className={`flex size-10 shrink-0 items-center justify-center rounded-full ${
-                  danger ? "bg-red-600/10 text-red-600" : "bg-black/5 dark:bg-white/10"
-                }`}
-              >
-                {danger ? <AlertTriangle size={20} /> : <HelpCircle size={20} />}
-              </div>
-              <div className="flex flex-col gap-1">
-                <h2 id="confirm-title" className="text-base font-semibold">{options.title}</h2>
-                {options.description && <div className="text-sm opacity-70">{options.description}</div>}
-              </div>
-            </div>
+      <AlertDialog open={open} onOpenChange={(next) => !next && settle(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogMedia className={cn(danger ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary")}>
+              {danger ? <TriangleAlert /> : <CircleHelp />}
+            </AlertDialogMedia>
+            <AlertDialogTitle>{options?.title}</AlertDialogTitle>
+            {options?.description && <AlertDialogDescription>{options.description}</AlertDialogDescription>}
+          </AlertDialogHeader>
 
-            {options.requireText && (
-              <label className="flex flex-col gap-1.5 text-sm">
-                <span className="opacity-70">
-                  Type <b className="font-mono opacity-100">{options.requireText}</b> to confirm
-                </span>
-                <input
-                  value={typed}
-                  onChange={(e) => setTyped(e.target.value)}
-                  autoFocus
-                  autoComplete="off"
-                  className="rounded-md border border-black/15 bg-transparent px-3 py-2 font-mono text-sm outline-none focus:border-black/50 dark:border-white/20 dark:focus:border-white/60"
-                />
-              </label>
-            )}
+          {options?.requireText && (
+            <form
+              className="grid gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (canConfirm) settle(true);
+              }}
+            >
+              <Label htmlFor="confirm-text" className="font-normal text-muted-foreground">
+                Type <span className="font-mono font-semibold text-foreground">{options.requireText}</span> to confirm
+              </Label>
+              <Input id="confirm-text" value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus autoComplete="off" className="font-mono" />
+            </form>
+          )}
 
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => settle(false)} autoFocus={!options.requireText}>
-                {options.cancelText ?? "Cancel"}
-              </Button>
-              <Button type="submit" variant={danger ? "destructive" : "primary"} disabled={!canConfirm}>
-                {options.confirmText ?? "Confirm"}
-              </Button>
-            </div>
-          </form>
-        )}
-      </dialog>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{options?.cancelText ?? "Cancel"}</AlertDialogCancel>
+            <AlertDialogAction
+              variant={danger ? "danger" : "default"}
+              disabled={!canConfirm}
+              onClick={(e) => {
+                e.preventDefault();
+                settle(true);
+              }}
+            >
+              {options?.confirmText ?? "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </ConfirmContext>
   );
 }

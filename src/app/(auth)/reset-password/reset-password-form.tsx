@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { Alert, Button, Card, Input } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/page";
+import { AuthPanel, FormMessage, authLink } from "../auth-panel";
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -15,10 +17,10 @@ export function ResetPasswordForm() {
 
   if (!token || params.get("error")) {
     return (
-      <Card title="Link expired">
-        <Alert>This reset link is invalid or has expired.</Alert>
-        <Link href="/forgot-password" className="text-center text-sm underline">Request a new link</Link>
-      </Card>
+      <AuthPanel title="Link expired" subtitle="This reset link is invalid or has expired.">
+        <FormMessage>Password reset links are valid for 1 hour and can only be used once.</FormMessage>
+        <Link href="/forgot-password" className={`text-center text-sm ${authLink}`}>Request a new link</Link>
+      </AuthPanel>
     );
   }
 
@@ -37,13 +39,13 @@ export function ResetPasswordForm() {
   }
 
   return (
-    <Card title="Choose a new password">
-      <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        {error && <Alert>{error}</Alert>}
-        <Input label="New password" name="password" type="password" required minLength={8} autoComplete="new-password" />
-        <Input label="Confirm new password" name="confirm" type="password" required minLength={8} autoComplete="new-password" />
-        <Button disabled={pending}>{pending ? "Saving…" : "Reset password"}</Button>
+    <AuthPanel title="Choose a new password" subtitle="Use at least 8 characters.">
+      <form onSubmit={onSubmit} className="grid gap-4">
+        {error && <FormMessage>{error}</FormMessage>}
+        <Field label="New password" name="password" type="password" required minLength={8} autoComplete="new-password" />
+        <Field label="Confirm new password" name="confirm" type="password" required minLength={8} autoComplete="new-password" />
+        <Button size="lg" disabled={pending}>{pending ? "Saving…" : "Reset password"}</Button>
       </form>
-    </Card>
+    </AuthPanel>
   );
 }
