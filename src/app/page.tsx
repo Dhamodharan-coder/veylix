@@ -16,7 +16,8 @@ export default function Home() {
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-8">
           <Logo href="/" />
           <div className="flex items-center gap-2">
-            <Link href="/sign-in" className={buttonVariants({ variant: "ghost" })}>Sign in</Link>
+            <Link href="/docs" className={buttonVariants({ variant: "ghost" })}>Docs</Link>
+            <Link href="/sign-in"className={buttonVariants({ variant: "ghost" })}>Sign in</Link>
             <Link href="/sign-up" className={buttonVariants()}>Get started</Link>
           </div>
         </div>

@@ -59,7 +59,12 @@ export function ApiTokensCard({ tokens, projects }: { tokens: TokenRow[]; projec
     <Card className="gap-0 shadow-xs">
       <CardHeader className="pb-4">
         <CardTitle>API tokens</CardTitle>
-        <CardDescription>Use the Veylix CLI or REST API to pull variables into apps and CI pipelines.</CardDescription>
+        <CardDescription>
+          Use the Veylix CLI or REST API to pull variables into apps and CI pipelines.{" "}
+          <a href="/docs/cli" target="_blank" className="font-medium text-primary underline-offset-4 hover:underline">
+            Read the docs
+          </a>
+        </CardDescription>
         <CardAction>
           <Button onClick={() => setOpen(true)} disabled={projects.length === 0}>
             <Plus /> Create token
@@ -175,7 +180,10 @@ function CliHelp({ token }: { token: string }) {
         Run <code className="font-mono">veylix projects</code> to list everything the token can reach, or pass{" "}
         <code className="font-mono">--project</code> / <code className="font-mono">--env</code> to any command. In CI, set{" "}
         <code className="font-mono">VEYLIX_TOKEN</code>, <code className="font-mono">VEYLIX_URL</code>, <code className="font-mono">VEYLIX_PROJECT</code> and{" "}
-        <code className="font-mono">VEYLIX_ENV</code> instead.
+        <code className="font-mono">VEYLIX_ENV</code> instead.{" "}
+        <a href="/docs/cli/commands" target="_blank" className="font-medium text-primary underline-offset-4 hover:underline">
+          All commands
+        </a>
       </p>
     </div>
   );

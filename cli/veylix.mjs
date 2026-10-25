@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { createInterface } from "node:readline/promises";
 
-const VERSION = "1.2.1";
+const VERSION = "1.2.2";
 const DEFAULT_URL = "https://veylix-omega.vercel.app";
 const CONFIG_PATH = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "veylix", "config.json");
 // Per-folder project/environment choice (no secrets, safe to commit).
@@ -45,7 +45,7 @@ Examples:
   veylix pull --project api --env production --format json
   VEYLIX_TOKEN=vlx_… VEYLIX_PROJECT=api VEYLIX_ENV=production veylix run -- node server.js   # CI
 
-Create a token at ${DEFAULT_URL}/settings`;
+Create a token at ${DEFAULT_URL}/settings · Docs: ${DEFAULT_URL}/docs`;
 
 // ---------- args ----------
 

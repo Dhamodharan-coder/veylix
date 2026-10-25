@@ -7,6 +7,8 @@
 
 The official command-line tool for **[Veylix](https://veylix-omega.vercel.app)**. It pulls your environment variables into local development, shell sessions and CI/CD pipelines, so you don't have to copy `.env` files around.
 
+📚 **Full documentation: [veylix-omega.vercel.app/docs](https://veylix-omega.vercel.app/docs)**
+
 ```bash
 npm install -g veylix-cli
 veylix login --token vlx_…

@@ -36,6 +36,7 @@ src/app/(app)/layout.tsx        app shell: shadcn Sidebar, AppSwitcher, VaultPro
 src/app/(app)/dashboard|projects|settings   Env Manager + account settings
 src/app/(app)/vault/            Vault pages + actions.ts (all vault server actions)
 src/app/actions.ts              Env Manager server actions
+src/app/docs/                   public docs (CLI, REST API, tokens, security); nav in docs/nav.ts, building blocks in docs/components.tsx
 src/lib/                        auth, db, session, email, crypto, projects, vault-*
 src/components/ui/              shadcn components (generated; edit freely)
 src/components/vault/           Vault client components

@@ -140,3 +140,24 @@
     cursor: pointer;
   }
 }
+
+/* Public docs (/docs): body text inside the article. Headings, code and tables use components in src/app/docs/components.tsx. */
+@layer components {
+  .docs-content > p,
+  .docs-content > ul,
+  .docs-content > ol {
+    @apply my-4 leading-7;
+  }
+  .docs-content > ul {
+    @apply list-disc pl-6;
+  }
+  .docs-content > ol {
+    @apply list-decimal pl-6;
+  }
+  .docs-content li {
+    @apply my-1.5 leading-7;
+  }
+  .docs-content a:not([class]) {
+    @apply font-medium text-primary underline-offset-4 hover:underline;
+  }
+}
