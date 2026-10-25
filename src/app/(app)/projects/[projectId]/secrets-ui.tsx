@@ -24,6 +24,7 @@ import {
   deleteSecret,
   exportEnvFile,
   importEnvFile,
+  renameProject,
   revealSecret,
   updateSecret,
   upsertSecret,
@@ -451,6 +452,51 @@ function SecretRow({ secret }: { secret: Secret }) {
         </div>
       </TableCell>
     </TableRow>
+  );
+}
+
+export function RenameProjectButton({ projectId, name }: { projectId: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        <Pencil /> Rename
+      </Button>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Rename project</DialogTitle>
+          <DialogDescription>Folders linked with the CLI keep working, since they&apos;re linked by project ID.</DialogDescription>
+        </DialogHeader>
+        {open && <RenameProjectForm projectId={projectId} name={name} onDone={() => setOpen(false)} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RenameProjectForm({ projectId, name, onDone }: { projectId: string; name: string; onDone: () => void }) {
+  const [state, action, pending] = useActionState(async (prev: ActionState, formData: FormData) => {
+    const result = await renameProject(projectId, prev, formData);
+    if (result?.ok) {
+      notify.success(`Renamed to "${String(formData.get("name")).trim()}"`);
+      onDone();
+    }
+    return result;
+  }, null);
+
+  return (
+    <form action={action} className="grid gap-4">
+      <FormError message={state?.error} />
+      <div className="grid gap-2">
+        <Label htmlFor="project-name">Name</Label>
+        <Input id="project-name" name="name" required autoFocus maxLength={60} defaultValue={name} onFocus={(e) => e.target.select()} />
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button type="button" variant="outline">Cancel</Button>
+        </DialogClose>
+        <Button disabled={pending}>{pending ? "Saving…" : "Save"}</Button>
+      </DialogFooter>
+    </form>
   );
 }
 

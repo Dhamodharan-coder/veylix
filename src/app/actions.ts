@@ -53,6 +53,19 @@ export async function createProject(_: ActionState, formData: FormData): Promise
   redirect(`/projects/${project.id}`);
 }
 
+export async function renameProject(projectId: string, _: ActionState, formData: FormData): Promise<ActionState> {
+  const user = await requireUser();
+  const tooMany = await limited("envWrite", user.id);
+  if (tooMany) return tooMany;
+  const name = z.string().trim().min(1).max(60).safeParse(formData.get("name"));
+  if (!name.success) return { error: "Project name is required (max 60 chars)." };
+
+  const { count } = await prisma.project.updateMany({ where: { id: projectId, ownerId: user.id }, data: { name: name.data } });
+  if (!count) return { error: "Project not found." };
+  refresh();
+  return { ok: true };
+}
+
 export async function deleteProject(projectId: string) {
   const user = await requireUser();
   await prisma.project.deleteMany({ where: { id: projectId, ownerId: user.id } });

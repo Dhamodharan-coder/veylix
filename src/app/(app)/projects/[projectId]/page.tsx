@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getProject } from "@/lib/projects";
 import { PageHeader, formatDate } from "@/components/page";
 import { ProjectPageSkeleton } from "@/components/skeletons";
-import { DeleteProjectButton, SecretsPanel } from "./secrets-ui";
+import { DeleteProjectButton, RenameProjectButton, SecretsPanel } from "./secrets-ui";
 import { EnvironmentActions, EnvironmentTabs } from "./environment-ui";
 
 export default function ProjectPage(props: PageProps<"/projects/[projectId]">) {
@@ -27,7 +27,12 @@ async function Project({ params, searchParams }: PageProps<"/projects/[projectId
         breadcrumbs={[{ label: "Projects", href: "/dashboard" }, { label: project.name }]}
         title={project.name}
         description={`Created ${formatDate(project.createdAt)} · ${environments.length} environments · ${totalVariables} variables`}
-        actions={<DeleteProjectButton projectId={project.id} name={project.name} />}
+        actions={
+          <>
+            <RenameProjectButton projectId={project.id} name={project.name} />
+            <DeleteProjectButton projectId={project.id} name={project.name} />
+          </>
+        }
       />
 
       <EnvironmentTabs projectId={project.id} environments={environments} currentId={current.id} />
