@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { createInterface } from "node:readline/promises";
 
-const VERSION = "1.2.2";
+const VERSION = "1.3.0";
 const DEFAULT_URL = "https://veylix-omega.vercel.app";
 const CONFIG_PATH = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "veylix", "config.json");
 // Per-folder project/environment choice (no secrets, safe to commit).
@@ -27,8 +27,10 @@ Usage:
   veylix envs                         List environments of the project with variable counts
   veylix pull [--format dotenv|json|shell] [--output <file>]
   veylix run -- <command> [args…]     Run a command with the variables injected
-  veylix push [--file .env] [--replace]
-                                      Upload a .env file (read-write token)
+  veylix push [--file .env] [--replace] [--dry-run] [--yes]
+                                      Upload a .env file (read-write token). Shows what will
+                                      change first; --replace also deletes keys missing from
+                                      the file and asks before deleting (--yes skips the question)
   veylix set KEY=value [KEY2=value…]
   veylix unset KEY
 
@@ -65,6 +67,7 @@ function parseArgs(argv) {
       else if (argv[i + 1] && !argv[i + 1].startsWith("--")) flags[key] = argv[++i];
       else flags[key] = true;
     } else if (a === "-h") flags.help = true;
+    else if (a === "-y") flags.yes = true;
     else positional.push(a);
   }
   return { command: positional[0], args: positional.slice(1), flags, rest };
@@ -213,6 +216,41 @@ function fail(msg) {
   process.exit(1);
 }
 
+// ---------- push preview ----------
+
+/** What a push would do: keys added, changed, deleted (only with replace) and left unchanged. */
+function diffSecrets(current, incoming, replace) {
+  const plan = { added: [], changed: [], deleted: [], unchanged: 0 };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (!(key in current)) plan.added.push(key);
+    else if (current[key] !== value) plan.changed.push(key);
+    else plan.unchanged++;
+  }
+  if (replace) plan.deleted = Object.keys(current).filter((key) => !(key in incoming));
+  return plan;
+}
+
+function printPlan(plan) {
+  const width = Math.max(0, ...[...plan.added, ...plan.changed, ...plan.deleted].map((k) => k.length));
+  for (const key of plan.added) info(`  ${c(32, "+")} ${key.padEnd(width)}  ${c(2, "new")}`);
+  for (const key of plan.changed) info(`  ${c(33, "~")} ${key.padEnd(width)}  ${c(2, "changed")}`);
+  for (const key of plan.deleted) info(`  ${c(31, "-")} ${key.padEnd(width)}  ${c(31, "will be DELETED")}`);
+  if (plan.unchanged) info(c(2, `  ${plan.unchanged} unchanged`));
+}
+
+/** Yes/no question on stderr; anything but y/yes counts as no. */
+async function confirm(question) {
+  const rl = createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return /^y(es)?$/i.test((await rl.question(`${question} [y/N] `)).trim());
+  } catch (e) {
+    if (e.name === "AbortError") return false;
+    throw e;
+  } finally {
+    rl.close();
+  }
+}
+
 // ---------- commands ----------
 
 const commands = {
@@ -328,7 +366,25 @@ const commands = {
     if (!existsSync(file)) fail(`File not found: ${file}`);
     const secrets = parseDotenv(readFileSync(file, "utf8"));
     if (!Object.keys(secrets).length) fail(`No KEY=value lines found in ${file}`);
-    const res = JSON.parse(await api(flags, "/api/v1/secrets", { method: "PUT", body: JSON.stringify({ ...target(flags), secrets, replace: !!flags.replace }) }));
+    const replace = !!flags.replace;
+
+    // Preview what will change before writing anything (key names only, never values).
+    const current = await fetchSecrets(flags);
+    const plan = diffSecrets(current.secrets, secrets, replace);
+    info(`${c(1, where(current))} ${c(2, `(from ${file})`)}`);
+    printPlan(plan);
+    if (!plan.added.length && !plan.changed.length && !plan.deleted.length) return success("Already up to date. Nothing to push.");
+    if (flags["dry-run"]) return info(c(2, "Dry run: nothing was changed."));
+
+    if (plan.deleted.length && !flags.yes) {
+      const n = plan.deleted.length;
+      const warning = `${n} key${n === 1 ? "" : "s"} will be permanently deleted.`;
+      if (!process.stdin.isTTY) fail(`${warning} Re-run with --yes to confirm (or --dry-run to preview).`);
+      info(c(33, `⚠ ${warning}`));
+      if (!(await confirm("Continue?"))) fail("Cancelled. Nothing was changed.");
+    }
+
+    const res = JSON.parse(await api(flags, "/api/v1/secrets", { method: "PUT", body: JSON.stringify({ ...target(flags), secrets, replace }) }));
     success(`${where(res)}: ${res.created} created, ${res.updated} updated${res.deleted ? `, ${res.deleted} deleted` : ""}`);
   },
 

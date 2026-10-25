@@ -93,7 +93,7 @@ veylix pull > .env              # or write a .env file
 | `veylix envs` | List the environments of the current project |
 | `veylix pull [--format dotenv\|json\|shell] [--output <file>]` | Print or save variables |
 | `veylix run -- <command> [args…]` | Run a command with the variables injected |
-| `veylix push [--file .env] [--replace]` | Upload a `.env` file (needs a read-write token) |
+| `veylix push [--file .env] [--replace] [--dry-run] [--yes]` | Upload a `.env` file (needs a read-write token). Shows the changes first and asks before deleting anything |
 | `veylix set KEY=value [KEY2=value…]` | Create or update variables |
 | `veylix unset KEY` | Delete a variable |
 | `veylix help` / `veylix --version` | Show help or the version |
@@ -116,7 +116,8 @@ eval "$(veylix pull --format shell)"
 veylix pull --output .env.local
 
 # Sync a local .env up to Veylix; --replace also deletes keys missing from the file
-veylix push --file .env.production --env production --replace
+veylix push --file .env.production --env production --replace --dry-run   # preview only
+veylix push --file .env.production --env production --replace             # asks before deleting
 
 # Quick edits
 veylix set STRIPE_KEY=sk_live_… FEATURE_FLAG=true

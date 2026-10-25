@@ -19,7 +19,7 @@ export default function CliCommands() {
         rows={[
           [<C key="c">pull</C>, "Print or save variables (dotenv, JSON or shell)"],
           [<C key="c">run</C>, "Run a command with variables injected"],
-          [<C key="c">push</C>, "Upload a .env file"],
+          [<C key="c">push</C>, "Upload a .env file, with a preview of the changes"],
           [<C key="c">set</C>, "Create or update variables"],
           [<C key="c">unset</C>, "Delete a variable"],
           [<C key="c">link / unlink</C>, "Choose the project and environment for a folder"],
@@ -73,23 +73,39 @@ veylix run -- python manage.py migrate`}
 
       <H2>push</H2>
       <p>
-        Uploads a <C>.env</C> file. Needs a <strong>read &amp; write</strong> token.
+        Uploads a <C>.env</C> file. Needs a <strong>read &amp; write</strong> token. Before writing, it shows exactly which keys will be added,
+        changed or deleted (key names only, never values).
       </p>
-      <CodeBlock code="veylix push [--file .env] [--replace]" />
+      <CodeBlock code="veylix push [--file .env] [--replace] [--dry-run] [--yes]" />
       <DocTable
         head={["Option", "Description"]}
         rows={[
           [<C key="o">--file</C>, <>File to upload. Default <C>.env</C>.</>],
-          [<C key="o">--replace</C>, "Make the environment match the file exactly: keys not in the file are deleted."],
+          [<C key="o">--replace</C>, "Make the environment match the file exactly: keys not in the file are deleted. Asks for confirmation first."],
+          [<C key="o">--dry-run</C>, "Show what would change, then stop. Nothing is written."],
+          [<C key="o">--yes, -y</C>, "Confirm deletions without asking. Required for --replace in CI and scripts."],
         ]}
       />
       <CodeBlock
         title="Example"
-        code={`$ veylix push --file .env.production --env production
-✓ api › production: 3 created, 9 updated`}
+        code={`$ veylix push --file .env.production --env production --replace
+api › production (from .env.production)
+  + NEW_FLAG      new
+  ~ API_URL       changed
+  - DATABASE_URL  will be DELETED
+  - STRIPE_KEY    will be DELETED
+  9 unchanged
+⚠ 2 keys will be permanently deleted.
+Continue? [y/N] y
+✓ api › production: 1 created, 1 updated, 2 deleted`}
       />
+      <Callout type="warning" title="Deleting keys is permanent">
+        Run with <C>--dry-run</C> first when in doubt. Without a terminal to answer the question (CI, scripts, piped input), <C>--replace</C> refuses
+        to delete anything unless you pass <C>--yes</C>.
+      </Callout>
       <p>
-        Comments, blank lines and <C>export</C> prefixes are ignored. Single- and double-quoted values are supported.
+        If the file matches the environment, <C>push</C> reports &ldquo;Already up to date&rdquo; and changes nothing. Comments, blank lines and{" "}
+        <C>export</C> prefixes are ignored. Single- and double-quoted values are supported.
       </p>
 
       <H2>set and unset</H2>
