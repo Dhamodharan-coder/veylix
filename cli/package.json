@@ -1,6 +1,6 @@
 {
   "name": "veylix-cli",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Veylix CLI: pull, inject and sync environment variables from Veylix into your apps, shells and CI pipelines. Zero dependencies.",
   "keywords": [
     "veylix",

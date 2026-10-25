@@ -214,4 +214,4 @@ For CI, use a **read-only token scoped to one project**, and set an expiry.
 
 ## License
 
-[MIT](./LICENSE) © Veylix
+[MIT](./LICENSE) © Dhamodharan
