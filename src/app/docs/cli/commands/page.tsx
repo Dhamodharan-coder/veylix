@@ -22,6 +22,7 @@ export default function CliCommands() {
           [<C key="c">push</C>, "Upload a .env file, with a preview of the changes"],
           [<C key="c">set</C>, "Create or update variables"],
           [<C key="c">unset</C>, "Delete a variable"],
+          [<C key="c">diff</C>, "Compare two environments: missing and different keys"],
           [<C key="c">link / unlink</C>, "Choose the project and environment for a folder"],
           [<C key="c">projects</C>, "List projects, environments and variable counts"],
           [<C key="c">envs</C>, "List the environments of the current project"],
@@ -119,6 +120,32 @@ $ veylix unset LEGACY_API_URL
 ✓ Deleted LEGACY_API_URL from api › development`}
       />
       <p>Keys may contain letters, digits and underscores, and can&apos;t start with a digit.</p>
+
+      <H2>diff</H2>
+      <p>
+        Compares two environments of a project and lists keys that exist in only one of them. Only key names are printed, never values.
+      </p>
+      <CodeBlock code={`veylix diff <env> <other-env> [--all] [--fail-on-missing]
+veylix diff <other-env>          # in a linked folder: compares the linked environment`} />
+      <DocTable
+        head={["Option", "Description"]}
+        rows={[
+          [<C key="o">--all</C>, "Also list keys with different and identical values."],
+          [<C key="o">--fail-on-missing</C>, "Exit with code 1 when any key is missing on either side. Use it as a CI check before deploying."],
+        ]}
+      />
+      <CodeBlock
+        title="Example"
+        code={`$ veylix diff development production
+api › development ↔ production
+  - DEBUG                  missing in production
+  - STRIPE_WEBHOOK_SECRET  missing in production
+  2 missing · 9 different · 3 same  (--all lists every key)`}
+      />
+      <Callout type="tip" title="Catch missing variables before they break production">
+        Add <C>veylix diff development production --fail-on-missing</C> to your deploy pipeline. In the web app, the <strong>Compare</strong> button
+        next to the environment tabs shows the same comparison and can copy missing keys across.
+      </Callout>
 
       <H2>link and unlink</H2>
       <CodeBlock code={`veylix link [--project <name>] [--env <name>]

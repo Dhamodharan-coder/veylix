@@ -419,8 +419,10 @@ async function handle(message: Request, sender: chrome.runtime.MessageSender): P
     }
 
     case "setBaseUrl": {
-      const url = new URL(message.baseUrl);
-      await chrome.storage.local.set({ baseUrl: url.origin });
+      const { origin } = new URL(message.baseUrl);
+      // Saving the same URL again must not wipe Touch ID or lock the vault.
+      if (origin === (await baseUrl())) return null;
+      await chrome.storage.local.set({ baseUrl: origin });
       await chrome.storage.local.remove("biometric");
       await lock();
       return null;

@@ -11,6 +11,7 @@ import { IconButton } from "@/components/icon-button";
 import { notify } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { cn } from "@/lib/utils";
+import { CompareButton } from "./compare-ui";
 
 type Env = { id: string; name: string; secretCount: number };
 
@@ -89,6 +90,7 @@ export function EnvironmentTabs({ projectId, environments, currentId }: { projec
           <Plus /> Add environment
         </Button>
       )}
+      <CompareButton environments={environments} currentId={currentId} />
     </div>
   );
 }

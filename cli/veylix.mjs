@@ -8,7 +8,7 @@ import { homedir } from "node:os";
 import { dirname, join, relative } from "node:path";
 import { createInterface } from "node:readline/promises";
 
-const VERSION = "1.3.0";
+const VERSION = "1.4.0";
 const DEFAULT_URL = "https://veylix-omega.vercel.app";
 const CONFIG_PATH = join(process.env.XDG_CONFIG_HOME || join(homedir(), ".config"), "veylix", "config.json");
 // Per-folder project/environment choice (no secrets, safe to commit).
@@ -33,6 +33,8 @@ Usage:
                                       the file and asks before deleting (--yes skips the question)
   veylix set KEY=value [KEY2=value…]
   veylix unset KEY
+  veylix diff <env> <other-env> [--all] [--fail-on-missing]
+                                      Compare two environments (key names only, never values)
 
   Every command accepts --project <name> and --env <name> to override the link.
 
@@ -386,6 +388,36 @@ const commands = {
 
     const res = JSON.parse(await api(flags, "/api/v1/secrets", { method: "PUT", body: JSON.stringify({ ...target(flags), secrets, replace }) }));
     success(`${where(res)}: ${res.created} created, ${res.updated} updated${res.deleted ? `, ${res.deleted} deleted` : ""}`);
+  },
+
+  async diff(args, flags) {
+    const linked = target(flags).env;
+    const [envA, envB] = args.length >= 2 ? args : [linked, args[0]];
+    if (!envA || !envB) fail("Usage: veylix diff <env> <other-env>   (or `veylix diff <other-env>` in a linked folder)");
+    const [a, b] = await Promise.all([fetchSecrets({ ...flags, env: envA }), fetchSecrets({ ...flags, env: envB })]);
+    const keys = [...new Set([...Object.keys(a.secrets), ...Object.keys(b.secrets)])].sort();
+    const missing = [];
+    let different = 0;
+    let same = 0;
+    const width = Math.max(0, ...keys.map((k) => k.length));
+    info(`${c(1, `${a.project} › ${a.environment}`)} ↔ ${c(1, b.environment)}`);
+    for (const key of keys) {
+      if (!(key in b.secrets)) {
+        missing.push(key);
+        info(`  ${c(31, "-")} ${key.padEnd(width)}  ${c(31, `missing in ${b.environment}`)}`);
+      } else if (!(key in a.secrets)) {
+        missing.push(key);
+        info(`  ${c(31, "-")} ${key.padEnd(width)}  ${c(31, `missing in ${a.environment}`)}`);
+      } else if (a.secrets[key] !== b.secrets[key]) {
+        different++;
+        if (flags.all) info(`  ${c(33, "~")} ${key.padEnd(width)}  ${c(2, "different")}`);
+      } else {
+        same++;
+        if (flags.all) info(`  ${c(2, "=")} ${key.padEnd(width)}  ${c(2, "same value")}`);
+      }
+    }
+    info(c(2, `  ${missing.length} missing · ${different} different · ${same} same${flags.all ? "" : "  (--all lists every key)"}`));
+    if (missing.length && flags["fail-on-missing"]) process.exit(1);
   },
 
   async set(args, flags) {

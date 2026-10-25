@@ -70,7 +70,7 @@ export function send<T>(message: Request): Promise<Response<T>> {
   return chrome.runtime.sendMessage(message);
 }
 
-export const DEFAULT_BASE_URL = "http://localhost:3000";
+export const DEFAULT_BASE_URL = "https://veylix-omega.vercel.app";
 
 function hostOf(url: string | null | undefined): string | null {
   if (!url) return null;

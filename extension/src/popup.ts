@@ -80,6 +80,7 @@ async function renderUnlock(status: Extract<Status, { state: "locked" }>) {
       <p class="error hidden" id="unlock-error"></p>
       <button class="btn block" id="unlock-btn">Unlock</button>
       <button class="btn outline block hidden" type="button" id="bio-btn">${ICONS.fingerprint} Unlock with ${biometricLabel()}</button>
+      <p class="muted hidden" id="bio-hint" style="margin:0;font-size:12px;text-align:center"></p>
       <p class="muted" style="margin:0;font-size:11px;text-align:center">Decrypted on this device only. Your master password is never sent.</p>
     </form>`;
   const form = document.getElementById("unlock-form") as HTMLFormElement;
@@ -93,7 +94,21 @@ async function renderUnlock(status: Extract<Status, { state: "locked" }>) {
   };
 
   const biometric = status.biometric;
-  if (biometric && (await biometricSupported())) {
+  const supported = await biometricSupported();
+  // Say why there's no fingerprint button instead of leaving people guessing.
+  const hint = !supported
+    ? biometric
+      ? `${biometricLabel()} isn't available in this browser right now.`
+      : ""
+    : biometric
+      ? ""
+      : `Tip: unlock once, then turn on ${biometricLabel()} in ⚙️ Settings.`;
+  if (hint) {
+    const hintEl = document.getElementById("bio-hint")!;
+    hintEl.textContent = hint;
+    hintEl.classList.remove("hidden");
+  }
+  if (biometric && supported) {
     bioBtn.classList.remove("hidden");
     const unlockWithBiometric = async () => {
       // The OS prompt steals focus and would close the toolbar popup, so use a window.

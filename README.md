@@ -65,7 +65,7 @@ On a login page you'll see a Veylix icon in the username field. Click it to pick
 
 After you log in on a site, the extension offers **"Save this login to Veylix?"**, or **"Update password?"** when the site is already saved with a different password, and warns if the password appears in known breaches. Choose a name and folder, or pick **Never for this site**.
 
-Your master password and decrypted passwords never leave the extension. It only downloads ciphertext from `/api/extension/vault`, authenticated with your Veylix session. The unlocked key lives in the browser's in-memory session storage and auto-locks after your vault's timeout. If Veylix isn't on `http://localhost:3000`, set the URL with the ⚙️ in the popup.
+Your master password and decrypted passwords never leave the extension. It only downloads ciphertext from `/api/extension/vault`, authenticated with your Veylix session. The unlocked key lives in the browser's in-memory session storage and auto-locks after your vault's timeout. It connects to `https://veylix-omega.vercel.app` by default; for local development or a self-hosted server, set the URL with the ⚙️ in the popup.
 
 ## CLI & API (Env Manager)
 

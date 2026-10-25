@@ -96,6 +96,7 @@ veylix pull > .env              # or write a .env file
 | `veylix push [--file .env] [--replace] [--dry-run] [--yes]` | Upload a `.env` file (needs a read-write token). Shows the changes first and asks before deleting anything |
 | `veylix set KEY=value [KEY2=value…]` | Create or update variables |
 | `veylix unset KEY` | Delete a variable |
+| `veylix diff <env> <other-env> [--all] [--fail-on-missing]` | Compare two environments: keys missing on either side (names only) |
 | `veylix help` / `veylix --version` | Show help or the version |
 
 Every command accepts `--project <name|id>` and `--env <name>` to override the folder link.
@@ -118,6 +119,9 @@ veylix pull --output .env.local
 # Sync a local .env up to Veylix; --replace also deletes keys missing from the file
 veylix push --file .env.production --env production --replace --dry-run   # preview only
 veylix push --file .env.production --env production --replace             # asks before deleting
+
+# Find keys missing from production (exit 1 in CI if any)
+veylix diff development production --fail-on-missing
 
 # Quick edits
 veylix set STRIPE_KEY=sk_live_… FEATURE_FLAG=true

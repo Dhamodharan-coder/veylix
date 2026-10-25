@@ -221,6 +221,66 @@ export async function revealSecret(secretId: string): Promise<string> {
   return decrypt(secret.value);
 }
 
+export type CompareRow = { key: string; inA: boolean; inB: boolean; /** null when the key is missing on one side */ same: boolean | null };
+
+/** Two environments of the same owned project, or an error. */
+async function environmentPair(envAId: string, envBId: string): Promise<{ error: string } | { userId: string }> {
+  const user = await requireUser();
+  if (envAId === envBId) return { error: "Choose two different environments." };
+  const envs = await prisma.environment.findMany({
+    where: { id: { in: [envAId, envBId] }, project: { ownerId: user.id } },
+    select: { id: true, projectId: true },
+  });
+  if (envs.length !== 2 || envs[0].projectId !== envs[1].projectId) return { error: "Environment not found." };
+  return { userId: user.id };
+}
+
+/**
+ * Key-by-key comparison of two environments. Values are compared on the
+ * server and never returned: the browser only learns same / different / missing.
+ */
+export async function compareEnvironments(envAId: string, envBId: string): Promise<{ rows: CompareRow[] } | { error: string }> {
+  const pair = await environmentPair(envAId, envBId);
+  if ("error" in pair) return pair;
+  const tooMany = await limited("envReveal", pair.userId);
+  if (tooMany) return tooMany;
+
+  const secrets = await prisma.secret.findMany({ where: { environmentId: { in: [envAId, envBId] } }, select: { environmentId: true, key: true, value: true } });
+  const a = new Map(secrets.filter((s) => s.environmentId === envAId).map((s) => [s.key, s.value]));
+  const b = new Map(secrets.filter((s) => s.environmentId === envBId).map((s) => [s.key, s.value]));
+  const keys = [...new Set([...a.keys(), ...b.keys()])].sort();
+  return {
+    rows: keys.map((key) => {
+      const va = a.get(key);
+      const vb = b.get(key);
+      return { key, inA: va !== undefined, inB: vb !== undefined, same: va !== undefined && vb !== undefined ? decrypt(va) === decrypt(vb) : null };
+    }),
+  };
+}
+
+/** Copies variables (with their values) from one environment to another; existing keys in the target are left alone. */
+export async function copySecrets(fromEnvId: string, toEnvId: string, keys: string[]): Promise<{ copied: number } | { error: string }> {
+  const pair = await environmentPair(fromEnvId, toEnvId);
+  if ("error" in pair) return pair;
+  const tooMany = await limited("envWrite", pair.userId);
+  if (tooMany) return tooMany;
+  const parsed = z.array(keySchema).min(1).max(1000).safeParse(keys);
+  if (!parsed.success) return { error: "Choose at least one valid key to copy." };
+
+  const [source, existing] = await Promise.all([
+    prisma.secret.findMany({ where: { environmentId: fromEnvId, key: { in: parsed.data } }, select: { key: true, value: true } }),
+    prisma.secret.findMany({ where: { environmentId: toEnvId, key: { in: parsed.data } }, select: { key: true } }),
+  ]);
+  const taken = new Set(existing.map((s) => s.key));
+  const toCopy = source.filter((s) => !taken.has(s.key));
+  if (toCopy.length) {
+    // The value stays encrypted with the same key, so it can be copied as-is.
+    await prisma.secret.createMany({ data: toCopy.map((s) => ({ environmentId: toEnvId, key: s.key, value: s.value })) });
+  }
+  refresh();
+  return { copied: toCopy.length };
+}
+
 /** Returns the environment as .env file text. */
 export async function exportEnvFile(environmentId: string): Promise<string> {
   const env = await assertEnvironmentOwner(environmentId);
