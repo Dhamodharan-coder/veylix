@@ -62,13 +62,28 @@ veylix run -- npm run dev`}
 
       <H2>Ways to use your variables</H2>
       <ul>
-        <li><strong>Web app:</strong> create projects, edit variables, import and export <code className="font-mono">.env</code> files.</li>
+        <li><strong>Web app:</strong> create projects, edit variables, import and export <code className="font-mono">.env</code> files, and compare environments.</li>
         <li><strong>CLI (<code className="font-mono">veylix</code>):</strong> inject variables into any command, write <code className="font-mono">.env</code> files, push changes from your terminal.</li>
         <li><strong>REST API:</strong> read and write variables from any language or platform with a bearer token.</li>
       </ul>
       <p>
         The CLI and API authenticate with <Link href="/docs/tokens">API tokens</Link> that you create under <strong>Settings → API tokens</strong>. A token can
         reach all of your projects or just one, and can be read-only.
+      </p>
+
+      <H2>Compare environments</H2>
+      <p>
+        A variable added to development but forgotten in production is a classic cause of failed deploys. On a project page, click{" "}
+        <strong>Compare</strong> next to the environment tabs and pick two environments:
+      </p>
+      <ul>
+        <li><strong>Missing:</strong> the key exists in only one of them. Click <strong>Copy</strong> to add it to the other (existing keys are never overwritten).</li>
+        <li><strong>Different:</strong> both have the key with different values, which is normal for things like database URLs.</li>
+        <li><strong>Same value:</strong> identical in both. Worth a look if it&apos;s something like a test API key in production.</li>
+      </ul>
+      <p>
+        Values are compared on the server and never sent to your browser. From the terminal, <Link href="/docs/cli/commands#diff">veylix diff</Link>{" "}
+        shows the same comparison and can fail a CI job when keys are missing.
       </p>
 
       <H2>Password Vault</H2>

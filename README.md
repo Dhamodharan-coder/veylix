@@ -8,7 +8,10 @@ Two separate modules, switched from the top of the sidebar:
 - Projects → environments (development / staging / production) → variables
 - Values encrypted server-side with **AES-256-GCM** (`ENCRYPTION_KEY`)
 - Import a pasted or uploaded `.env`, download any environment as `.env`
+- Rename projects; add, rename and delete environments
+- **Compare environments** side by side (e.g. development ↔ production): see which keys are missing or different, and copy missing keys across in one click. Values are compared on the server and never sent to the browser
 - **API tokens + `veylix` CLI + REST API** to pull variables into apps and CI (see below)
+- 📚 **Docs:** [veylix-omega.vercel.app/docs](https://veylix-omega.vercel.app/docs) (also at `/docs` when running locally)
 
 **Vault** (`/vault`): a Zoho Vault–style password manager
 - Unlocked with a **master password** (separate from the login password, never stored or sent)
@@ -79,9 +82,11 @@ veylix projects                      # projects, environments and variable count
 veylix link                          # pick a project & environment for this folder (writes .veylix.json)
 veylix pull > .env                   # or --format json|shell, --output file
 veylix run -- npm start              # inject variables, no .env file written
-veylix push --file .env [--replace]
+veylix push --file .env [--replace]  # shows added/changed/deleted keys first; asks before deleting
+veylix push --replace --dry-run      # preview only, nothing written (--yes skips the question in CI)
 veylix set API_KEY=abc
 veylix unset API_KEY
+veylix diff development production   # keys missing on either side (--all, --fail-on-missing for CI)
 veylix whoami                        # account, token access and what this folder uses
 
 # Override the link on any command:
@@ -90,14 +95,13 @@ veylix pull --project api --env production
 
 `veylix link` asks interactively (or takes `--project` / `--env`) and saves the choice in `.veylix.json`. That file holds no secrets and is safe to commit, so everyone on the project pulls the same environment. The project and environment come from, in order: `--project`/`--env` flags, the `VEYLIX_PROJECT`/`VEYLIX_ENV` env vars, then the nearest `.veylix.json`.
 
-In CI, skip `login` and set `VEYLIX_TOKEN`, `VEYLIX_URL`, `VEYLIX_PROJECT` and `VEYLIX_ENV`:
+In CI, skip `login` and set `VEYLIX_TOKEN`, `VEYLIX_PROJECT` and `VEYLIX_ENV` (plus `VEYLIX_URL` when self-hosted):
 
 ```yaml
 # GitHub Actions
-- run: node cli/veylix.mjs run -- npm run deploy
+- run: npx veylix-cli run -- npm run deploy
   env:
     VEYLIX_TOKEN: ${{ secrets.VEYLIX_TOKEN }}
-    VEYLIX_URL: https://your-veylix.app
     VEYLIX_PROJECT: api
     VEYLIX_ENV: production
 ```
