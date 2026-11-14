@@ -18,6 +18,7 @@ import { formatBreachCount, pwnedCount } from "@/lib/breach-check";
 import type { VaultSnapshot, VaultItemRecord } from "@/lib/vault-data";
 import type { getAccessOverview } from "@/app/(app)/vault/actions";
 import { cn } from "@/lib/utils";
+import { TruncatedText } from "@/components/truncated-text";
 
 type Overview = Extract<Awaited<ReturnType<typeof getAccessOverview>>, { ok: true }>;
 
@@ -299,15 +300,15 @@ function ItemTable({ rows, onFix }: { rows: { item: VaultItemRecord; detail: Rea
               <div className="flex items-center gap-3">
                 <span className={cn("flex size-8 items-center justify-center rounded-lg text-xs font-semibold text-white uppercase", avatarColor(item.name))}>{item.name[0]}</span>
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{item.name}</p>
-                  <p className="truncate text-xs text-muted-foreground">{hostname(item.url) ?? "-"}</p>
+                  <TruncatedText as="p" className="font-medium">{item.name}</TruncatedText>
+                  <TruncatedText as="p" className="text-xs text-muted-foreground">{hostname(item.url) ?? "-"}</TruncatedText>
                 </div>
               </div>
             </TableCell>
             <TableCell>
               <div className="grid gap-1">
                 <span>{detail}</span>
-                {hint && <span className="max-w-[40ch] truncate text-xs text-muted-foreground">{hint}</span>}
+                {hint && <TruncatedText className="max-w-[40ch] text-xs text-muted-foreground">{hint}</TruncatedText>}
               </div>
             </TableCell>
             <TableCell className="hidden text-muted-foreground md:table-cell">{item.folderName}</TableCell>

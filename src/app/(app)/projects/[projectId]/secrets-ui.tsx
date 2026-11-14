@@ -48,6 +48,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState, formatDate } from "@/components/page";
 import { IconButton } from "@/components/icon-button";
+import { TruncatedText } from "@/components/truncated-text";
 import { notify } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { cn } from "@/lib/utils";
@@ -423,15 +424,13 @@ function SecretRow({ secret }: { secret: Secret }) {
   return (
     <TableRow>
       <TableCell className="py-3 pl-4 font-mono text-[13px] font-medium">
-        <span className="block max-w-[28ch] truncate" title={name}>{name}</span>
+        <TruncatedText className="block max-w-[28ch]">{name}</TruncatedText>
       </TableCell>
       <TableCell className="font-mono text-[13px]">
         {value === null ? (
           <span className="tracking-widest text-muted-foreground select-none">••••••••••••</span>
         ) : (
-          <span className="block max-w-[48ch] truncate" title={value}>
-            {value || <i className="text-muted-foreground">empty</i>}
-          </span>
+          <TruncatedText className="block max-w-[48ch]">{value || <i className="text-muted-foreground">empty</i>}</TruncatedText>
         )}
       </TableCell>
       <TableCell className="hidden text-muted-foreground md:table-cell">{formatDate(secret.updatedAt)}</TableCell>

@@ -46,6 +46,7 @@ import { deleteItem, logVaultAccess, toggleFavorite } from "@/app/(app)/vault/ac
 import type { VaultSnapshot, VaultItemRecord } from "@/lib/vault-data";
 import type { ItemSecret } from "@/components/vault/vault-provider";
 import { cn } from "@/lib/utils";
+import { TruncatedText } from "@/components/truncated-text";
 
 export type PasswordsFilter = { kind: "all" } | { kind: "favorites" } | { kind: "shared" } | { kind: "folder"; folderId: string };
 
@@ -244,12 +245,12 @@ function ItemRow({
             {item.type === "SECURE_NOTE" ? <FileText className="size-4" /> : item.name[0]}
           </span>
           <div className="min-w-0">
-            <button type="button" onClick={() => ok && onOpen(ok)} className="flex items-center gap-1.5 truncate font-medium hover:underline" disabled={!ok}>
-              {item.name}
-              {item.favorite && <Star className="size-3.5 fill-amber-400 text-amber-400" />}
+            <button type="button" onClick={() => ok && onOpen(ok)} className="flex max-w-full min-w-0 items-center gap-1.5 font-medium hover:underline" disabled={!ok}>
+              <TruncatedText>{item.name}</TruncatedText>
+              {item.favorite && <Star className="size-3.5 shrink-0 fill-amber-400 text-amber-400" />}
             </button>
             <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
-              {site ? <span className="truncate">{site}</span> : item.type === "SECURE_NOTE" && <span>Secure note</span>}
+              {site ? <TruncatedText className="min-w-0">{site}</TruncatedText> : item.type === "SECURE_NOTE" && <span>Secure note</span>}
               {item.shared && (
                 <Badge variant="secondary" className="h-4 gap-1 px-1.5 text-[10px]">
                   <Users className="size-2.5" /> {item.via === "share" ? `Shared by ${item.sharedByName ?? "teammate"}` : "Shared"}
@@ -276,9 +277,9 @@ function ItemRow({
           <span className="text-xs text-destructive">Can&apos;t decrypt</span>
         ) : (
           <div className="grid font-mono text-[13px]">
-            <span className="truncate">{ok?.username || <span className="text-muted-foreground">-</span>}</span>
+            <TruncatedText>{ok?.username || <span className="text-muted-foreground">-</span>}</TruncatedText>
             {item.type === "LOGIN" && (
-              <span className="truncate text-muted-foreground">{revealed ? ok?.password : "••••••••••"}</span>
+              <TruncatedText className="text-muted-foreground">{revealed ? ok?.password : "••••••••••"}</TruncatedText>
             )}
           </div>
         )}

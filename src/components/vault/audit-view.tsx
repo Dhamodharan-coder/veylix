@@ -12,6 +12,7 @@ import { EmptyState, PageHeader, UserAvatar } from "@/components/page";
 import { TableRowsSkeleton } from "@/components/skeletons";
 import { notify } from "@/components/toast";
 import { listAuditFilterOptions, listAuditLogs, type AuditRow } from "@/app/(app)/vault/actions";
+import { TruncatedText } from "@/components/truncated-text";
 
 type Filters = { action: string; folderId: string; actorId: string; from: string; to: string };
 const EMPTY: Filters = { action: "all", folderId: "all", actorId: "all", from: "", to: "" };
@@ -184,8 +185,8 @@ export function AuditView() {
                         <div className="flex items-center gap-2">
                           <UserAvatar name={r.actorName} className="size-7" />
                           <div className="min-w-0">
-                            <p className="truncate font-medium">{r.actorName}</p>
-                            <p className="truncate text-xs text-muted-foreground">{r.actorEmail}</p>
+                            <TruncatedText as="p" className="font-medium">{r.actorName}</TruncatedText>
+                            <TruncatedText as="p" className="text-xs text-muted-foreground">{r.actorEmail}</TruncatedText>
                           </div>
                         </div>
                       </TableCell>
@@ -193,10 +194,10 @@ export function AuditView() {
                         <Badge variant={TONE[r.action] ?? "secondary"}>{r.label}</Badge>
                       </TableCell>
                       <TableCell>
-                        <p className="max-w-[28ch] truncate font-medium">{r.targetName ?? "-"}</p>
-                        <p className="max-w-[36ch] truncate text-xs text-muted-foreground">
+                        <TruncatedText as="p" className="max-w-[28ch] font-medium">{r.targetName ?? "-"}</TruncatedText>
+                        <TruncatedText as="p" className="max-w-[36ch] text-xs text-muted-foreground">
                           {[r.folderName && r.folderName !== r.targetName ? r.folderName : null, detail].filter(Boolean).join(" · ")}
-                        </p>
+                        </TruncatedText>
                       </TableCell>
                       <TableCell className="hidden pr-4 text-xs text-muted-foreground lg:table-cell">
                         <p className="font-mono">{r.ipAddress ?? "-"}</p>

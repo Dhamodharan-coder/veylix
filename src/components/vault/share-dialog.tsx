@@ -27,6 +27,7 @@ import {
   type AccessEntry,
 } from "@/app/(app)/vault/actions";
 import type { VaultFolderRecord, VaultItemRecord } from "@/lib/vault-data";
+import { TruncatedText } from "@/components/truncated-text";
 
 export type ShareTarget = { kind: "folder"; folder: VaultFolderRecord } | { kind: "item"; item: VaultItemRecord };
 
@@ -239,11 +240,11 @@ function SharePanel({ target, folders, items }: { target: ShareTarget; folders: 
               <li key={e.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/50">
                 <UserAvatar name={e.name} className="size-8" />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
+                  <TruncatedText as="p" className="text-sm font-medium">
                     {e.name} {e.isYou && <span className="text-muted-foreground">(you)</span>}
-                  </p>
-                  <p className="flex items-center gap-1.5 truncate text-xs text-muted-foreground">
-                    {e.kind === "invite" ? "Invited · not signed up yet" : e.email}
+                  </TruncatedText>
+                  <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+                    <TruncatedText className="min-w-0">{e.kind === "invite" ? "Invited · not signed up yet" : e.email}</TruncatedText>
                     {e.pending && e.kind !== "invite" && (
                       <Badge variant="outline" className="h-4 gap-1 px-1.5 text-[10px] text-warning">
                         <Clock className="size-2.5" /> Awaiting access

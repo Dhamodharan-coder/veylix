@@ -45,6 +45,7 @@ import {
 import { UserAvatar } from "@/components/page";
 import { themeOptions, useThemeChoice } from "@/components/theme";
 import { useConfirm } from "@/components/confirm-dialog";
+import { TruncatedText } from "@/components/truncated-text";
 
 type NavLink = { href: string; label: string; icon: LucideIcon; match: string[]; exact?: boolean };
 type NavGroup = { label: string; links: NavLink[] };
@@ -140,8 +141,8 @@ export function NavUser({ name, email }: { name: string; email: string }) {
             <SidebarMenuButton size="lg" className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground">
               <UserAvatar name={name} className="size-8" />
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{name}</span>
-                <span className="truncate text-xs text-muted-foreground">{email}</span>
+                <TruncatedText className="font-medium">{name}</TruncatedText>
+                <TruncatedText className="text-xs text-muted-foreground">{email}</TruncatedText>
               </div>
               <ChevronsUpDown className="ml-auto size-4" />
             </SidebarMenuButton>
@@ -151,8 +152,8 @@ export function NavUser({ name, email }: { name: string; email: string }) {
               <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
                 <UserAvatar name={name} className="size-8" />
                 <div className="grid flex-1 leading-tight">
-                  <span className="truncate font-medium">{name}</span>
-                  <span className="truncate text-xs text-muted-foreground">{email}</span>
+                  <TruncatedText className="font-medium">{name}</TruncatedText>
+                  <TruncatedText className="text-xs text-muted-foreground">{email}</TruncatedText>
                 </div>
               </div>
             </DropdownMenuLabel>
