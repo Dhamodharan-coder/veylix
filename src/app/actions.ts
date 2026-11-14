@@ -28,6 +28,10 @@ const keySchema = z
   .trim()
   .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "Keys may contain letters, digits and _, and can't start with a digit");
 
+/** Optional free-text note on a variable; empty means none. */
+const noteSchema = z.string().trim().max(500, "Notes can be at most 500 characters");
+const encryptNote = (note: string) => (note ? encrypt(note) : null);
+
 const envNameSchema = z
   .string()
   .trim()
@@ -136,11 +140,13 @@ export async function upsertSecret(_: ActionState, formData: FormData): Promise<
   const key = keySchema.safeParse(formData.get("key"));
   if (!key.success) return { error: key.error.issues[0].message };
   const value = String(formData.get("value") ?? "");
+  const note = noteSchema.safeParse(formData.get("note") ?? "");
+  if (!note.success) return { error: note.error.issues[0].message };
 
   await prisma.secret.upsert({
     where: { environmentId_key: { environmentId, key: key.data } },
-    create: { environmentId, key: key.data, value: encrypt(value) },
-    update: { value: encrypt(value) },
+    create: { environmentId, key: key.data, value: encrypt(value), note: encryptNote(note.data) },
+    update: { value: encrypt(value), note: encryptNote(note.data) },
   });
   refresh();
   return { ok: true };
@@ -171,8 +177,8 @@ export async function importEnvFile(_: ActionState, formData: FormData): Promise
   return { ok: true };
 }
 
-/** Edit an existing variable: change its value and/or rename its key. */
-export async function updateSecret(secretId: string, key: string, value: string): Promise<ActionState> {
+/** Edit an existing variable: change its value, note and/or rename its key. */
+export async function updateSecret(secretId: string, key: string, value: string, note = ""): Promise<ActionState> {
   const user = await requireUser();
   const tooMany = await limited("envWrite", user.id);
   if (tooMany) return tooMany;
@@ -184,6 +190,8 @@ export async function updateSecret(secretId: string, key: string, value: string)
 
   const parsed = keySchema.safeParse(key);
   if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const parsedNote = noteSchema.safeParse(note);
+  if (!parsedNote.success) return { error: parsedNote.error.issues[0].message };
 
   if (parsed.data !== secret.key) {
     const taken = await prisma.secret.findUnique({
@@ -195,7 +203,7 @@ export async function updateSecret(secretId: string, key: string, value: string)
 
   await prisma.secret.update({
     where: { id: secretId },
-    data: { key: parsed.data, value: encrypt(value) },
+    data: { key: parsed.data, value: encrypt(value), note: encryptNote(parsedNote.data) },
   });
   refresh();
   return { ok: true };
@@ -268,14 +276,14 @@ export async function copySecrets(fromEnvId: string, toEnvId: string, keys: stri
   if (!parsed.success) return { error: "Choose at least one valid key to copy." };
 
   const [source, existing] = await Promise.all([
-    prisma.secret.findMany({ where: { environmentId: fromEnvId, key: { in: parsed.data } }, select: { key: true, value: true } }),
+    prisma.secret.findMany({ where: { environmentId: fromEnvId, key: { in: parsed.data } }, select: { key: true, value: true, note: true } }),
     prisma.secret.findMany({ where: { environmentId: toEnvId, key: { in: parsed.data } }, select: { key: true } }),
   ]);
   const taken = new Set(existing.map((s) => s.key));
   const toCopy = source.filter((s) => !taken.has(s.key));
   if (toCopy.length) {
     // The value stays encrypted with the same key, so it can be copied as-is.
-    await prisma.secret.createMany({ data: toCopy.map((s) => ({ environmentId: toEnvId, key: s.key, value: s.value })) });
+    await prisma.secret.createMany({ data: toCopy.map((s) => ({ environmentId: toEnvId, key: s.key, value: s.value, note: s.note })) });
   }
   refresh();
   return { copied: toCopy.length };

@@ -124,6 +124,8 @@ model Secret {
   key           String
   // AES-256-GCM ciphertext, stored as "iv:authTag:ciphertext" (base64 parts)
   value         String
+  // Optional note (e.g. which account the key belongs to), encrypted like `value`
+  note          String?
   environmentId String
   environment   Environment @relation(fields: [environmentId], references: [id], onDelete: Cascade)
   createdAt     DateTime    @default(now())

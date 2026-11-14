@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getProject } from "@/lib/projects";
+import { decrypt } from "@/lib/crypto";
 import { PageHeader, formatDate } from "@/components/page";
 import { ProjectPageSkeleton } from "@/components/skeletons";
 import { DeleteProjectButton, RenameProjectButton, SecretsPanel } from "./secrets-ui";
@@ -40,7 +41,7 @@ async function Project({ params, searchParams }: PageProps<"/projects/[projectId
       <SecretsPanel
         key={current.id}
         environment={{ id: current.id, name: current.name }}
-        secrets={current.secrets.map((s) => ({ id: s.id, key: s.key, updatedAt: s.updatedAt.toISOString() }))}
+        secrets={current.secrets.map((s) => ({ id: s.id, key: s.key, note: s.note ? decrypt(s.note) : null, updatedAt: s.updatedAt.toISOString() }))}
         header={
           <EnvironmentActions
             projectId={project.id}

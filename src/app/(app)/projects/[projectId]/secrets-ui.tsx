@@ -53,7 +53,7 @@ import { notify } from "@/components/toast";
 import { useConfirm } from "@/components/confirm-dialog";
 import { cn } from "@/lib/utils";
 
-type Secret = { id: string; key: string; updatedAt: string };
+type Secret = { id: string; key: string; note: string | null; updatedAt: string };
 type Environment = { id: string; name: string };
 
 /** Card with toolbar (search, import, export, add) and the variables table. */
@@ -61,7 +61,8 @@ export function SecretsPanel({ environment, secrets, header }: { environment: En
   const [query, setQuery] = useState("");
   const [dialog, setDialog] = useState<"add" | "import" | null>(null);
   const [exporting, startExport] = useTransition();
-  const filtered = secrets.filter((s) => s.key.toLowerCase().includes(query.trim().toLowerCase()));
+  const q = query.trim().toLowerCase();
+  const filtered = secrets.filter((s) => s.key.toLowerCase().includes(q) || !!s.note?.toLowerCase().includes(q));
 
   const download = () =>
     startExport(async () => {
@@ -85,7 +86,7 @@ export function SecretsPanel({ environment, secrets, header }: { environment: En
           {secrets.length > 0 && (
             <div className="relative w-full sm:w-56">
               <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search keys…" aria-label="Search keys" className="pl-8" />
+              <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search keys or notes…" aria-label="Search keys or notes" className="pl-8" />
             </div>
           )}
           <Button variant="outline" onClick={() => setDialog("import")}>
@@ -191,6 +192,13 @@ function AddVariableForm({ environment, onDone }: { environment: Environment; on
       <div className="grid gap-2">
         <Label htmlFor="secret-value">Value</Label>
         <Textarea id="secret-value" name="value" rows={3} autoComplete="off" placeholder="postgres://…" className="field-sizing-fixed h-24 max-h-60 resize-y font-mono break-all" />
+      </div>
+      <div className="grid gap-2">
+        <Label htmlFor="secret-note">
+          Note <span className="font-normal text-muted-foreground">(optional)</span>
+        </Label>
+        <Input id="secret-note" name="note" maxLength={500} autoComplete="off" placeholder="e.g. Stripe account billing@company.com, expires Jan 2027" />
+        <p className="text-xs text-muted-foreground">Which account or service this is for. Encrypted like the value.</p>
       </div>
       <DialogFooter>
         <DialogClose asChild>
@@ -325,7 +333,7 @@ function SecretRow({ secret }: { secret: Secret }) {
   const { id, key: name } = secret;
   const [value, setValue] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [editing, setEditing] = useState<{ key: string; value: string } | null>(null);
+  const [editing, setEditing] = useState<{ key: string; value: string; note: string } | null>(null);
   const [editError, setEditError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const confirm = useConfirm();
@@ -354,7 +362,7 @@ function SecretRow({ secret }: { secret: Secret }) {
   const startEdit = () =>
     run(async () => {
       setEditError(null);
-      setEditing({ key: name, value: value ?? (await revealSecret(id)) });
+      setEditing({ key: name, value: value ?? (await revealSecret(id)), note: secret.note ?? "" });
     }, `Couldn't load ${name}`);
 
   const remove = async () => {
@@ -375,7 +383,7 @@ function SecretRow({ secret }: { secret: Secret }) {
     e.preventDefault();
     if (!editing) return;
     run(async () => {
-      const result = await updateSecret(id, editing.key, editing.value);
+      const result = await updateSecret(id, editing.key, editing.value, editing.note);
       if (result?.error) return setEditError(result.error);
       notify.success(`${editing.key.trim()} updated`);
       setEditing(null);
@@ -414,6 +422,15 @@ function SecretRow({ secret }: { secret: Secret }) {
                 </Button>
               </div>
             </div>
+            <Input
+              value={editing.note}
+              onChange={(e) => setEditing({ ...editing, note: e.target.value })}
+              maxLength={500}
+              autoComplete="off"
+              aria-label="Note"
+              placeholder="Note (optional): which account or service this is for"
+              onKeyDown={(e) => e.key === "Escape" && setEditing(null)}
+            />
             {editError && <p className="text-sm text-destructive">{editError}</p>}
           </form>
         </TableCell>
@@ -425,6 +442,11 @@ function SecretRow({ secret }: { secret: Secret }) {
     <TableRow>
       <TableCell className="py-3 pl-4 font-mono text-[13px] font-medium">
         <TruncatedText className="block max-w-[28ch]">{name}</TruncatedText>
+        {secret.note && (
+          <TruncatedText className="mt-0.5 block max-w-[36ch] font-sans text-xs font-normal text-muted-foreground">
+            {secret.note}
+          </TruncatedText>
+        )}
       </TableCell>
       <TableCell className="font-mono text-[13px]">
         {value === null ? (

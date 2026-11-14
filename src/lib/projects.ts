@@ -30,7 +30,7 @@ export async function getProject(projectId: string) {
     include: {
       environments: {
         orderBy: { createdAt: "asc" },
-        include: { secrets: { orderBy: { key: "asc" }, select: { id: true, key: true, updatedAt: true } } },
+        include: { secrets: { orderBy: { key: "asc" }, select: { id: true, key: true, note: true, updatedAt: true } } },
       },
     },
   });
